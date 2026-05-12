@@ -31,6 +31,7 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "packageManager": "pnpm@10.33.0",
   "bin": {
     "ratel-mcp": "./dist/bin.js"
   },
