@@ -9,6 +9,7 @@ import { BACKUP_USAGE, runBackup } from "./handlers/backup.js";
 import { MCP_USAGE, runMcp } from "./handlers/mcp.js";
 import { runServe } from "./handlers/serve.js";
 import type { HandlerCtx } from "./handlers/types.js";
+import { runUi } from "./handlers/ui.js";
 import { findProjectRoot, type HierarchyEnv } from "./hierarchy.js";
 import { type JsonFs, nodeFs } from "./io.js";
 import { type PromptAdapter, silentPromptAdapter } from "./prompts.js";
@@ -36,6 +37,7 @@ Commands:
   serve    start the gateway over stdio (use --config <path>; repeat for multi-file merge)
   mcp      manage MCP servers (add, remove, list, get, edit, import, link, auth)
   backup   manage backup snapshots (list)
+  ui       launch a local browser UI mirroring the CLI [--port N] [--no-open]
 
 Run \`ratel-mcp <group>\` for the verbs available in a group.`;
 
@@ -77,6 +79,10 @@ export async function runCli(argv: string[], options: RunCliOptions = {}): Promi
     log,
     prompts: options.prompts ?? silentPromptAdapter(),
   };
+
+  if (parsed.group === "ui") {
+    return runUi(parsed, ctx, log);
+  }
 
   if (parsed.group === "mcp") {
     await runMcp(ctx);

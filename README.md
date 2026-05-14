@@ -66,7 +66,7 @@ Run `ratel-mcp <group>` for the verbs in a group:
 |---|---|
 | `mcp` | `add`, `remove`, `list`, `get`, `edit`, `import`, `link`, `auth` |
 | `backup` | `list`, `undo` |
-| (top-level) | `serve` |
+| (top-level) | `serve`, `ui` |
 
 ### `ratel-mcp mcp add` — Claude-compatible
 
@@ -126,6 +126,16 @@ For summarizing the resulting JSONL stream, see [`@ratel-ai/cli`'s `ratel inspec
 ### Backups & undo
 
 Every `import`, `link`, `add`, `edit`, and `remove` snapshots the files it touches into `~/.ratel/backups/<ISO>/` with a `manifest.json`. `ratel-mcp backup list` shows what's available; `ratel-mcp backup undo` (deliberately hidden from `--help`) restores the most recent set.
+
+### Browser UI
+
+```bash
+ratel-mcp ui              # starts a local UI on an ephemeral 127.0.0.1 port, opens your browser
+ratel-mcp ui --port 5731  # bind a specific port
+ratel-mcp ui --no-open    # print the URL without launching a browser
+```
+
+The UI mirrors the CLI verbs across all three scopes: view/add/edit/remove servers, drive OAuth, import/link from Claude Code, and undo the latest backup. The server binds to `127.0.0.1` only and gates every request on a single-use session token printed in the launch URL. Stop it with `Ctrl-C`.
 
 ## Library quickstart
 

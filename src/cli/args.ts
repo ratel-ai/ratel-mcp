@@ -1,4 +1,4 @@
-export type Group = "mcp" | "backup" | "serve" | "help";
+export type Group = "mcp" | "backup" | "serve" | "ui" | "help";
 
 export type McpVerb = "add" | "remove" | "list" | "get" | "edit" | "import" | "link" | "auth";
 
@@ -99,6 +99,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   } else if (first === "serve") {
     group = "serve";
+    i = 1;
+  } else if (first === "ui") {
+    group = "ui";
     i = 1;
   } else {
     throw new ArgError(`unknown command: ${first}`);
