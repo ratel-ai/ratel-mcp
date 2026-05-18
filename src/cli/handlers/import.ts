@@ -2,7 +2,14 @@ import type { RatelConfig, ServerEntry } from "../../lib/index.js";
 import type { BackupManifest } from "../backup.js";
 import { type ClaudeConfigDoc, type ClaudeScope, readClaudeConfig } from "../claude.js";
 import { ratelConfigPath } from "../hierarchy.js";
-import { buildImportPlan, type FileChange, type ImportPlan } from "../import-plan.js";
+import {
+  buildImportPlan,
+  conflictKey,
+  type FileChange,
+  type ImportConflict,
+  type ImportConflictStrategy,
+  type ImportPlan,
+} from "../import-plan.js";
 import { readJson } from "../io.js";
 import { locateRatelBin, type ResolvedBin } from "../locate-bin.js";
 import { executePlan } from "../plan-exec.js";
@@ -14,6 +21,7 @@ export type ProbeFn = (name: string, entry: ServerEntry) => Promise<string | und
 export interface ImportFlowOptions {
   yes?: boolean;
   dryRun?: boolean;
+  conflictStrategy?: ImportConflictStrategy;
   bin?: ResolvedBin;
   envVar?: string;
   whichResult?: string;
@@ -26,6 +34,11 @@ interface Candidate {
   name: string;
   scope: ClaudeScope;
   hasDescription: boolean;
+}
+
+interface ConflictResolution {
+  conflictStrategy: ImportConflictStrategy;
+  replaceConflicts?: Set<string>;
 }
 
 export async function runImport(
@@ -67,22 +80,28 @@ export async function runImport(
 
   await captureDescriptions(ctx, selection, claudeUser, claudeProject, claudeLocal, opts);
 
-  const plan = buildImportPlan(
-    {
-      claudeUser,
-      claudeProject,
-      claudeLocal,
-      ratelUser,
-      ratelProject,
-      ratelLocal,
-      bin,
-      ratelUserPath,
-      ratelProjectPath,
-      ratelLocalPath,
-      projectRoot: ctx.env.projectRoot,
-    },
-    { selection: new Set(selection.map((c) => c.name)) },
-  );
+  const planInputs = {
+    claudeUser,
+    claudeProject,
+    claudeLocal,
+    ratelUser,
+    ratelProject,
+    ratelLocal,
+    bin,
+    ratelUserPath,
+    ratelProjectPath,
+    ratelLocalPath,
+    projectRoot: ctx.env.projectRoot,
+  };
+  const planOptions = { selection: new Set(selection.map((c) => c.name)) };
+  const initialPlan = buildImportPlan(planInputs, planOptions);
+  const conflictResolution = await resolveConflictStrategy(ctx, initialPlan, opts);
+  if (conflictResolution === null) {
+    ctx.prompts.cancel("import cancelled (no writes)");
+    return null;
+  }
+
+  const plan = buildImportPlan(planInputs, { ...planOptions, ...conflictResolution });
 
   ctx.prompts.note(renderSummary(plan), "Summary");
 
@@ -143,6 +162,72 @@ export async function runImport(
   ctx.prompts.note(`Backup created. Run \`ratel-mcp undo\` to revert.`, "Done");
   ctx.prompts.outro("import complete · restart Claude to pick up the new MCP entry");
   return stageBManifest;
+}
+
+async function resolveConflictStrategy(
+  ctx: HandlerCtx,
+  plan: ImportPlan,
+  opts: ImportFlowOptions,
+): Promise<ConflictResolution | null> {
+  if (plan.summary.conflicts.length === 0) return { conflictStrategy: "add-missing-only" };
+  ctx.prompts.note(renderConflicts(plan.summary.conflicts), "Conflicts");
+  if (opts.conflictStrategy) {
+    return resolveSelectedConflicts(ctx, plan, opts.conflictStrategy);
+  }
+  if (opts.dryRun) {
+    ctx.prompts.note("Conflict strategy: Add missing only", "Dry run");
+    return { conflictStrategy: "add-missing-only" };
+  }
+  if (opts.yes) return { conflictStrategy: "add-missing-only" };
+  const picked = await ctx.prompts.select<ImportConflictStrategy | "cancel">({
+    message: "How should conflicting MCP server names be handled?",
+    initialValue: "add-missing-only",
+    options: [
+      {
+        value: "add-missing-only",
+        label: "Add missing only",
+        hint: "Keep existing Ratel entries and import non-conflicting entries.",
+      },
+      {
+        value: "replace-selected",
+        label: "Replace selected conflicts",
+        hint: "Choose which conflicting Ratel entries to overwrite.",
+      },
+      {
+        value: "replace-from-agent",
+        label: "Replace conflicts from agent",
+        hint: "Overwrite conflicting Ratel entries with Claude Code entries.",
+      },
+      {
+        value: "cancel",
+        label: "Cancel",
+        hint: "Exit before writing files.",
+      },
+    ],
+  });
+  if (ctx.prompts.isCancel(picked) || picked === "cancel") return null;
+  return resolveSelectedConflicts(ctx, plan, picked as ImportConflictStrategy);
+}
+
+async function resolveSelectedConflicts(
+  ctx: HandlerCtx,
+  plan: ImportPlan,
+  conflictStrategy: ImportConflictStrategy,
+): Promise<ConflictResolution | null> {
+  if (conflictStrategy !== "replace-selected") return { conflictStrategy };
+
+  const selected = await ctx.prompts.multiselect<string>({
+    message: "Pick conflicts to replace from Claude Code",
+    required: false,
+    options: plan.summary.conflicts.map((c) => ({
+      value: conflictKey(c.scope, c.name),
+      label: `${c.name} [${c.scope}]`,
+      hint: `${summarizeEntry(c.existing)} -> ${summarizeEntry(c.incoming)}`,
+    })),
+    initialValues: [],
+  });
+  if (ctx.prompts.isCancel(selected)) return null;
+  return { conflictStrategy, replaceConflicts: new Set(selected as string[]) };
 }
 
 function collectCandidates(
@@ -309,6 +394,14 @@ function renderSummary(plan: ImportPlan): string {
       lines.push(`  - ${s.name} (${s.scope}): ${s.reason}`);
     }
   }
+  if (plan.summary.conflicts.length > 0) {
+    lines.push("");
+    lines.push(
+      `Conflicts: ${plan.summary.conflicts.length} (${renderConflictStrategyName(
+        plan.summary.conflictStrategy,
+      )})`,
+    );
+  }
   if (plan.summary.overwrittenRatelEntries.length > 0) {
     lines.push("");
     lines.push(
@@ -318,6 +411,33 @@ function renderSummary(plan: ImportPlan): string {
     );
   }
   return lines.length > 0 ? lines.join("\n") : "(no changes)";
+}
+
+function renderConflicts(conflicts: readonly ImportConflict[]): string {
+  return conflicts
+    .map((c) =>
+      [
+        `- ${c.name} (${c.scope})`,
+        `  source agent: ${summarizeEntry(c.incoming)}`,
+        `  existing Ratel: ${summarizeEntry(c.existing)}`,
+      ].join("\n"),
+    )
+    .join("\n");
+}
+
+function summarizeEntry(entry: ServerEntry): string {
+  if (entry.type === "http" || entry.type === "sse") {
+    return `${entry.type} ${entry.url ?? "(missing url)"}`;
+  }
+  const command = entry.command ?? "(missing command)";
+  const args = entry.args && entry.args.length > 0 ? ` ${entry.args.join(" ")}` : "";
+  return `${entry.type ?? "stdio"} ${command}${args}`;
+}
+
+function renderConflictStrategyName(strategy: ImportConflictStrategy): string {
+  if (strategy === "replace-from-agent") return "replace conflicts from agent";
+  if (strategy === "replace-selected") return "replace selected conflicts";
+  return "add missing only";
 }
 
 function renderDiff(changes: readonly FileChange[]): string {

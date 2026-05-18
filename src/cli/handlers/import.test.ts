@@ -78,6 +78,9 @@ function autoConfirm(): PromptAdapter {
     async confirm() {
       return true;
     },
+    async select(opts) {
+      return opts.initialValue ?? opts.options[0].value;
+    },
     async multiselect(opts) {
       return opts.options.map((o) => o.value) as unknown as never;
     },
@@ -101,6 +104,35 @@ function selectingPrompts(selected: string[]): PromptAdapter {
         .map((n) => map.get(n))
         .filter((x): x is string => typeof x === "string");
       return tags as unknown as never;
+    },
+  };
+}
+
+function conflictStrategyPrompts(
+  strategy: "add-missing-only" | "replace-selected" | "replace-from-agent" | "cancel",
+  selectedConflictKeys: string[] = [],
+): {
+  prompts: PromptAdapter;
+  conflictMessages: string[];
+} {
+  const conflictMessages: string[] = [];
+  return {
+    conflictMessages,
+    prompts: {
+      ...autoConfirm(),
+      note(message, title) {
+        if (title === "Conflicts") conflictMessages.push(message);
+      },
+      async select() {
+        return strategy;
+      },
+      async multiselect(opts) {
+        if (opts.message.includes("conflicts")) {
+          const available = new Set(opts.options.map((o) => o.value as string));
+          return selectedConflictKeys.filter((k) => available.has(k)) as unknown as never;
+        }
+        return opts.options.map((o) => o.value) as unknown as never;
+      },
     },
   };
 }
@@ -299,6 +331,162 @@ describe("runImport", () => {
     await runImport(ctx, { bin: BIN, yes: true });
     expect(confirmCalled).toBe(false);
     expect(fs.files.has(RATEL_USER)).toBe(true);
+  });
+
+  it("interactive conflict prompt defaults to keeping Ratel unless replace is selected", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "incoming" } },
+      }),
+    );
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "existing" } },
+      }),
+    );
+    const { prompts, conflictMessages } = conflictStrategyPrompts("replace-from-agent");
+    const { ctx } = ctxOf(fs, prompts, false);
+    await runImport(ctx, { bin: BIN });
+
+    expect(conflictMessages.join("\n")).toMatch(/source agent/i);
+    expect(conflictMessages.join("\n")).toMatch(/existing Ratel/i);
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "incoming" });
+  });
+
+  it("interactive conflict prompt can replace only selected conflicts", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: {
+          fs: { type: "stdio", command: "incoming-fs" },
+          other: { type: "stdio", command: "incoming-other" },
+        },
+      }),
+    );
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: {
+          fs: { type: "stdio", command: "existing-fs" },
+          other: { type: "stdio", command: "existing-other" },
+        },
+      }),
+    );
+    const { prompts } = conflictStrategyPrompts("replace-selected", ["user:other"]);
+    const { ctx } = ctxOf(fs, prompts, false);
+    await runImport(ctx, { bin: BIN });
+
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "existing-fs" });
+    expect(ratelUser.mcpServers.other).toEqual({ type: "stdio", command: "incoming-other" });
+  });
+
+  it("explicit replace-from-agent conflict strategy skips the strategy prompt", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "incoming" } },
+      }),
+    );
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "existing" } },
+      }),
+    );
+    let selectCalled = false;
+    const prompts: PromptAdapter = {
+      ...autoConfirm(),
+      async select() {
+        selectCalled = true;
+        return "add-missing-only";
+      },
+    };
+    const { ctx } = ctxOf(fs, prompts, false);
+    await runImport(ctx, { bin: BIN, conflictStrategy: "replace-from-agent" });
+
+    expect(selectCalled).toBe(false);
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "incoming" });
+  });
+
+  it("explicit replace-selected conflict strategy still prompts for the conflicts to replace", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: {
+          fs: { type: "stdio", command: "incoming-fs" },
+          other: { type: "stdio", command: "incoming-other" },
+        },
+      }),
+    );
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: {
+          fs: { type: "stdio", command: "existing-fs" },
+          other: { type: "stdio", command: "existing-other" },
+        },
+      }),
+    );
+    let selectCalled = false;
+    let multiselectCalled = false;
+    const prompts: PromptAdapter = {
+      ...autoConfirm(),
+      async select() {
+        selectCalled = true;
+        return "add-missing-only";
+      },
+      async multiselect(opts) {
+        if (opts.message.includes("conflicts")) {
+          multiselectCalled = true;
+          return ["user:fs"] as unknown as never;
+        }
+        return opts.options.map((o) => o.value) as unknown as never;
+      },
+    };
+    const { ctx } = ctxOf(fs, prompts, false);
+    await runImport(ctx, { bin: BIN, conflictStrategy: "replace-selected" });
+
+    expect(selectCalled).toBe(false);
+    expect(multiselectCalled).toBe(true);
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "incoming-fs" });
+    expect(ratelUser.mcpServers.other).toEqual({ type: "stdio", command: "existing-other" });
+  });
+
+  it("canceling at the conflict prompt exits before writes or backups", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "incoming" } },
+      }),
+    );
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "existing" } },
+      }),
+    );
+    const { prompts } = conflictStrategyPrompts("cancel");
+    const { ctx } = ctxOf(fs, prompts, false);
+    await runImport(ctx, { bin: BIN });
+
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "existing" });
+    expect(JSON.parse(fs.files.get(HOME_CLAUDE) as string).mcpServers.fs).toBeDefined();
+    const backupKeys = Array.from(fs.files.keys()).filter((k) =>
+      k.startsWith("/home/u/.ratel/backups/"),
+    );
+    expect(backupKeys).toEqual([]);
   });
 
   it("logs an undo hint if executor fails mid-flight", async () => {
