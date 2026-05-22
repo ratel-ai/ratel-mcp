@@ -103,7 +103,7 @@ export async function runLink(
     env: ctx.env,
     action: "link",
   });
-  ctx.prompts.note(`Backup created. Run \`ratel-mcp undo\` to revert.`, "Done");
+  ctx.prompts.note(`Backup created. Run \`ratel-mcp backup undo\` to revert.`, "Done");
   ctx.prompts.outro("link complete · restart Claude to pick up the new MCP entry");
   return manifest;
 }

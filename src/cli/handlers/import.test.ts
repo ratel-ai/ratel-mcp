@@ -542,7 +542,7 @@ describe("runImport", () => {
     fs.failNextWriteAt = HOME_CLAUDE;
     const { ctx, logs } = ctxOf(fs, autoConfirm(), false);
     await expect(runImport(ctx, { bin: BIN, yes: true })).rejects.toThrow();
-    expect(logs.join("\n")).toMatch(/undo/);
+    expect(logs.join("\n")).toMatch(/ratel-mcp backup undo/);
   });
 
   it("declining Stage B leaves Ratel configs in place and Claude untouched, with an undo+link hint", async () => {
