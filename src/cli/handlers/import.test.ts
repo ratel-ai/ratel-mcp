@@ -124,7 +124,7 @@ function conflictStrategyPrompts(
     prompts: {
       ...autoConfirm(),
       note(message, title) {
-        if (title === "Conflicts") conflictMessages.push(message);
+        if (title === "Ratel import conflicts") conflictMessages.push(message);
       },
       async select(opts) {
         selectOptions.splice(
@@ -135,7 +135,7 @@ function conflictStrategyPrompts(
         return strategy;
       },
       async multiselect(opts) {
-        if (opts.message.includes("conflicts")) {
+        if (opts.message.includes("Ratel entries")) {
           const available = new Set(opts.options.map((o) => o.value as string));
           return selectedConflictKeys.filter((k) => available.has(k)) as unknown as never;
         }
@@ -360,8 +360,8 @@ describe("runImport", () => {
     const { ctx } = ctxOf(fs, prompts, false);
     await runImport(ctx, { bin: BIN });
 
-    expect(conflictMessages.join("\n")).toMatch(/source agent/i);
-    expect(conflictMessages.join("\n")).toMatch(/existing Ratel/i);
+    expect(conflictMessages.join("\n")).toMatch(/Claude Code definition/i);
+    expect(conflictMessages.join("\n")).toMatch(/Existing Ratel definition/i);
     expect(selectOptions).toEqual(["add-missing-only", "replace-from-agent", "cancel"]);
     const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
     expect(ratelUser.mcpServers.fs).toEqual({ type: "stdio", command: "incoming" });
@@ -461,7 +461,7 @@ describe("runImport", () => {
         return "add-missing-only";
       },
       async multiselect(opts) {
-        if (opts.message.includes("conflicts")) {
+        if (opts.message.includes("Ratel entries")) {
           multiselectCalled = true;
           return ["user:fs"] as unknown as never;
         }
