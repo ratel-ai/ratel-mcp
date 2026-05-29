@@ -42,6 +42,10 @@ interface ConflictResolution {
   replaceConflicts?: Set<string>;
 }
 
+type ConflictResolutionResult =
+  | { kind: "resolved"; resolution: ConflictResolution }
+  | { kind: "cancelled" };
+
 export async function runImport(
   ctx: HandlerCtx,
   opts: ImportFlowOptions = {},
@@ -97,12 +101,12 @@ export async function runImport(
   const planOptions = { selection: new Set(selection.map((c) => c.name)) };
   const initialPlan = buildImportPlan(planInputs, planOptions);
   const conflictResolution = await resolveConflictStrategy(ctx, initialPlan, opts);
-  if (conflictResolution === null) {
+  if (conflictResolution.kind === "cancelled") {
     ctx.prompts.cancel("import cancelled (no writes)");
     return null;
   }
 
-  const plan = buildImportPlan(planInputs, { ...planOptions, ...conflictResolution });
+  const plan = buildImportPlan(planInputs, { ...planOptions, ...conflictResolution.resolution });
 
   ctx.prompts.note(renderSummary(plan), "Summary");
 
@@ -165,8 +169,10 @@ async function resolveConflictStrategy(
   ctx: HandlerCtx,
   plan: ImportPlan,
   opts: ImportFlowOptions,
-): Promise<ConflictResolution | null> {
-  if (plan.summary.conflicts.length === 0) return { conflictStrategy: "add-missing-only" };
+): Promise<ConflictResolutionResult> {
+  if (plan.summary.conflicts.length === 0) {
+    return { kind: "resolved", resolution: { conflictStrategy: "add-missing-only" } };
+  }
   ctx.prompts.note(renderConflicts(plan.summary.conflicts), "Ratel import conflicts");
   if (opts.conflictStrategy) {
     if (opts.conflictStrategy === "replace-selected" && (opts.yes || opts.dryRun)) {
@@ -178,9 +184,9 @@ async function resolveConflictStrategy(
   }
   if (opts.dryRun) {
     ctx.prompts.note("Ratel conflict strategy: keep existing Ratel definitions", "Dry run");
-    return { conflictStrategy: "add-missing-only" };
+    return { kind: "resolved", resolution: { conflictStrategy: "add-missing-only" } };
   }
-  if (opts.yes) return { conflictStrategy: "add-missing-only" };
+  if (opts.yes) return { kind: "resolved", resolution: { conflictStrategy: "add-missing-only" } };
   const picked = await ctx.prompts.select<ImportConflictStrategy | "cancel">({
     message:
       plan.summary.conflicts.length === 1
@@ -189,7 +195,7 @@ async function resolveConflictStrategy(
     initialValue: "add-missing-only",
     options: conflictStrategyOptions(plan.summary.conflicts.length),
   });
-  if (ctx.prompts.isCancel(picked) || picked === "cancel") return null;
+  if (ctx.prompts.isCancel(picked) || picked === "cancel") return { kind: "cancelled" };
   return resolveSelectedConflicts(ctx, plan, picked as ImportConflictStrategy);
 }
 
@@ -197,8 +203,10 @@ async function resolveSelectedConflicts(
   ctx: HandlerCtx,
   plan: ImportPlan,
   conflictStrategy: ImportConflictStrategy,
-): Promise<ConflictResolution | null> {
-  if (conflictStrategy !== "replace-selected") return { conflictStrategy };
+): Promise<ConflictResolutionResult> {
+  if (conflictStrategy !== "replace-selected") {
+    return { kind: "resolved", resolution: { conflictStrategy } };
+  }
 
   const selected = await ctx.prompts.multiselect<string>({
     message: "Pick Ratel entries to replace from Claude Code",
@@ -210,8 +218,11 @@ async function resolveSelectedConflicts(
     })),
     initialValues: [],
   });
-  if (ctx.prompts.isCancel(selected)) return null;
-  return { conflictStrategy, replaceConflicts: new Set(selected as string[]) };
+  if (ctx.prompts.isCancel(selected)) return { kind: "cancelled" };
+  return {
+    kind: "resolved",
+    resolution: { conflictStrategy, replaceConflicts: new Set(selected as string[]) },
+  };
 }
 
 function conflictStrategyOptions(conflictCount: number) {
