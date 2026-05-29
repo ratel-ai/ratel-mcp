@@ -23,6 +23,7 @@ import type {
   RatelConfigPaths,
 } from "./index.js";
 
+// ADR 0003 records the smol-toml tradeoff and the future NAPI/WASM parser option.
 export class CodexAgentHostAdapter implements AgentHostAdapter {
   async detect(ctx: AgentHostContext): Promise<AgentHostDetection> {
     const paths = [codexConfigPath("user", ctx.env)];
