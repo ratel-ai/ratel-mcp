@@ -9,6 +9,7 @@
     "typecheck": "pnpm --filter @ratel-ai/mcp-core typecheck && pnpm --filter @ratel-ai/mcp-ui typecheck && pnpm --filter @ratel-ai/mcp-server typecheck",
     "lint": "biome check .",
     "test": "pnpm --filter @ratel-ai/mcp-core test && pnpm --filter @ratel-ai/mcp-ui test && pnpm --filter @ratel-ai/mcp-server test",
+    "dev:ui": "tsx scripts/dev-ui.ts",
     "pack:server": "pnpm --filter @ratel-ai/mcp-server pack",
     "check:pack": "pnpm --filter @ratel-ai/mcp-server check:pack"
   },

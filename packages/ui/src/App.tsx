@@ -3,6 +3,7 @@ import {
   Info,
   KeyRound,
   LinkIcon,
+  Palette,
   Pencil,
   Plus,
   RefreshCw,
@@ -15,10 +16,11 @@ import {
   useCallback,
   useEffect,
   useId,
-  useMemo,
   useState,
 } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand-logo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -121,8 +123,8 @@ type JsonRequestInit = Omit<RequestInit, "body"> & { body?: unknown };
 
 const SCOPES: RatelScope[] = ["user", "project", "local"];
 
-function App() {
-  const token = useMemo(() => new URLSearchParams(window.location.search).get("t") ?? "", []);
+function App({ token }: { token: string }) {
+  const navigate = useNavigate();
   const [scope, setScope] = useState<RatelScope>("user");
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [modal, setModal] = useState<Modal | null>(null);
@@ -216,25 +218,38 @@ function App() {
   return (
     <>
       <header className="border-border border-b bg-background px-6 py-5">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2">
-          <h1 className="font-heading text-3xl leading-none font-semibold text-primary">
-            Ratel MCP
-          </h1>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs text-muted-foreground">
-            <span>home: {config?.homeDir ?? ""}</span>
-            <span>
-              {config?.projectRoot ? `project: ${config.projectRoot}` : "no project root"}
-            </span>
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="flex min-w-0 items-end gap-2 text-2xl leading-none font-semibold tracking-tight text-brand-green">
+              <BrandLogo className="h-9 w-auto max-w-[154px]" />
+              <span>MCP</span>
+            </h1>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs text-muted-foreground">
+              <span>home: {config?.homeDir ?? ""}</span>
+              <span>
+                {config?.projectRoot ? `project: ${config.projectRoot}` : "no project root"}
+              </span>
+            </div>
           </div>
+          <Button
+            onClick={() =>
+              void navigate({ to: "/lab/kitchen", search: token ? { t: token } : {} })
+            }
+            size="sm"
+            variant="outline"
+          >
+            <Palette />
+            Kitchen sink
+          </Button>
         </div>
       </header>
 
       <main className="mx-auto grid max-w-6xl gap-4 px-6 py-6">
         <Tabs value={scope} onValueChange={(value) => setScope(value as RatelScope)}>
-          <TabsList variant="line" className="border-border w-full justify-start border-b">
+          <TabsList variant="line" className="justify-start">
             {SCOPES.map((item) => (
               <TabsTrigger
-                className="font-mono text-[11px] tracking-[0.14em] uppercase data-active:text-primary"
+                className="font-mono text-[11px] tracking-[0.14em] uppercase data-active:text-brand-green"
                 key={item}
                 value={item}
               >
@@ -251,7 +266,13 @@ function App() {
               {scopeData?.available ? scopeData.path : "scope unavailable"}
             </CardDescription>
             <CardAction className="flex gap-2">
-              <Button aria-label="Refresh" onClick={refresh} size="icon" title="Refresh">
+              <Button
+                aria-label="Refresh"
+                onClick={refresh}
+                size="icon"
+                title="Refresh"
+                variant="outline"
+              >
                 <RefreshCw />
               </Button>
               <Button
@@ -285,7 +306,7 @@ function App() {
                           <strong className="font-medium">{name}</strong>
                           <AuthBadge status={authStatus} />
                         </div>
-                        <code className="block max-w-full overflow-hidden rounded-md border bg-primary px-2 py-1 font-mono text-xs text-primary-foreground text-ellipsis whitespace-nowrap">
+                        <code className="block max-w-full overflow-hidden rounded-md border border-brand-green/20 bg-brand-green px-2 py-1 font-mono text-xs text-brand-green-foreground text-ellipsis whitespace-nowrap">
                           {summaryOf(entry)}
                         </code>
                       </div>
@@ -465,7 +486,7 @@ function App() {
             <DialogHeader>
               <DialogTitle>Server: {modal.name}</DialogTitle>
             </DialogHeader>
-            <pre className="max-h-[60vh] overflow-auto rounded-md border bg-primary p-3 font-mono text-xs text-primary-foreground">
+            <pre className="max-h-[60vh] overflow-auto rounded-md border border-brand-green/20 bg-brand-green p-3 font-mono text-xs text-brand-green-foreground">
               {JSON.stringify(modal.entry, null, 2)}
             </pre>
           </DialogContent>
@@ -752,7 +773,7 @@ function AuthBadge({ status }: { status?: AuthStatus }) {
   if (!status || status === "n/a") return null;
   if (status === "ok") {
     return (
-      <Badge variant="outline" className="border-primary text-primary">
+      <Badge variant="outline" className="border-brand-green/30 bg-brand-green/5 text-brand-green">
         ok
       </Badge>
     );
@@ -760,7 +781,7 @@ function AuthBadge({ status }: { status?: AuthStatus }) {
   if (status === "expired") {
     return <Badge variant="secondary">expired</Badge>;
   }
-  return <Badge variant="destructive">needs auth</Badge>;
+  return <Badge variant="warning">needs auth</Badge>;
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown> | null> {

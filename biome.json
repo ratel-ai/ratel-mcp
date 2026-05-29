@@ -8,6 +8,7 @@
       "packages/**/*.ts",
       "packages/**/*.tsx",
       "packages/**/*.js",
+      "scripts/**/*.ts",
       "!apps/**/dist",
       "!packages/**/dist"
     ]
@@ -24,6 +25,34 @@
       "recommended": true
     }
   },
+  "overrides": [
+    {
+      "includes": ["packages/ui/src/components/ui/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off",
+            "noRedundantRoles": "off",
+            "useAriaPropsForRole": "off",
+            "useFocusableInteractive": "off",
+            "useKeyWithClickEvents": "off",
+            "useSemanticElements": "off"
+          },
+          "correctness": {
+            "useExhaustiveDependencies": "off"
+          },
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "off",
+            "noDocumentCookie": "off",
+            "noDoubleEquals": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
