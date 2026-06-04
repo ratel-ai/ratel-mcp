@@ -53,13 +53,15 @@ ratel-mcp mcp add --scope user stripe https://mcp.stripe.com --transport http
 # List what's configured
 ratel-mcp mcp list
 
-# Import your existing Claude Code MCP setup into ratel-mcp's scopes
+# Import your existing agent MCP setup into ratel-mcp's scopes
 ratel-mcp mcp import
+ratel-mcp mcp import --agent codex
 
-# Point Claude at the Ratel gateway without removing native Claude Code MCP entries
+# Point an agent at the Ratel gateway without removing native MCP entries
 ratel-mcp mcp link
+ratel-mcp mcp link --agent claude-code
 
-# Start the gateway over stdio (this is what Claude Code spawns after `link`)
+# Start the gateway over stdio (this is what linked agents spawn)
 ratel-mcp serve --config ~/.ratel/config.json
 ```
 

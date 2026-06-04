@@ -9,6 +9,7 @@ const ROOT = "/r";
 const BIN: ResolvedBin = { command: "ratel-mcp", args: [], source: "path" };
 
 const HOME_CLAUDE = "/home/u/.claude.json";
+const HOME_CODEX = "/home/u/.codex/config.toml";
 const PROJECT_MCP = "/r/.mcp.json";
 const RATEL_USER = "/home/u/.ratel/config.json";
 const RATEL_PROJECT = "/r/.ratel/config.json";
@@ -139,6 +140,35 @@ describe("runLink", () => {
     const claude = JSON.parse(fs.files.get(HOME_CLAUDE) as string);
     expect(claude.mcpServers.other).toEqual({ type: "stdio", command: "elsewhere" });
     expect(claude.mcpServers["ratel-mcp"].args).toEqual(["serve", "--config", RATEL_USER]);
+  });
+
+  it("uses the requested agent instead of the automatic choice", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      RATEL_USER,
+      JSON.stringify({
+        mcpServers: { fs: { type: "stdio", command: "echo" } },
+      }),
+    );
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: { claudeOnly: { type: "stdio", command: "claude" } },
+      }),
+    );
+    fs.files.set(
+      HOME_CODEX,
+      `[mcp_servers.codexOnly]
+command = "codex"
+`,
+    );
+    const { ctx } = ctxOf(fs, autoConfirm(), false);
+    await runLink(ctx, { bin: BIN, yes: true, agentKind: "codex" });
+
+    expect(fs.files.get(HOME_CLAUDE)).toContain("claudeOnly");
+    expect(fs.files.get(HOME_CLAUDE)).not.toContain("ratel-mcp");
+    expect(fs.files.get(HOME_CODEX)).toContain("[mcp_servers.ratel-mcp]");
+    expect(fs.files.get(HOME_CODEX)).toContain(`command = "ratel-mcp"`);
   });
 
   it("idempotent: running twice produces no further changes", async () => {

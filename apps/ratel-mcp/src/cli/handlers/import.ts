@@ -12,10 +12,12 @@ import {
   type ImportPlan,
   isRatelGatewayEntry,
   locateRatelBin,
+  NamedAgentHostAdapter,
   probeEntryInstructions,
   type ResolvedBin,
   ratelConfigPath,
   readJson,
+  type SupportedAgentHostKind,
 } from "@ratel-ai/mcp-core";
 import { ArgError } from "../args.js";
 import type { HandlerCtx } from "./types.js";
@@ -30,6 +32,7 @@ export interface ImportFlowOptions {
   envVar?: string;
   whichResult?: string;
   workspaceRoot?: string;
+  agentKind?: SupportedAgentHostKind;
   exists?: (path: string) => Promise<boolean>;
   probe?: ProbeFn;
 }
@@ -55,7 +58,9 @@ export async function runImport(
 ): Promise<BackupManifest | null> {
   ctx.prompts.intro("Ratel · import agent MCP servers");
 
-  const agentHost = new AutomaticAgentHostAdapter();
+  const agentHost = opts.agentKind
+    ? new NamedAgentHostAdapter(opts.agentKind)
+    : new AutomaticAgentHostAdapter();
   const detection = await agentHost.detect({ env: ctx.env, fs: ctx.fs });
   if (!detection.present) {
     ctx.prompts.note("No supported agent MCP servers found at any scope. Nothing to import.");

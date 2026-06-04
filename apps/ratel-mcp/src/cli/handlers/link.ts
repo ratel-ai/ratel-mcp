@@ -5,9 +5,11 @@ import {
   type buildImportPlan,
   executePlan,
   locateRatelBin,
+  NamedAgentHostAdapter,
   type ResolvedBin,
   ratelConfigPath,
   readJson,
+  type SupportedAgentHostKind,
 } from "@ratel-ai/mcp-core";
 import type { HandlerCtx } from "./types.js";
 
@@ -17,6 +19,7 @@ export interface LinkOptions {
   envVar?: string;
   whichResult?: string;
   workspaceRoot?: string;
+  agentKind?: SupportedAgentHostKind;
   exists?: (path: string) => Promise<boolean>;
 }
 
@@ -26,7 +29,9 @@ export async function runLink(
 ): Promise<BackupManifest | null> {
   ctx.prompts.intro("Ratel · link agent at Ratel");
 
-  const agentHost = new AutomaticAgentHostAdapter();
+  const agentHost = opts.agentKind
+    ? new NamedAgentHostAdapter(opts.agentKind)
+    : new AutomaticAgentHostAdapter();
   const detection = await agentHost.detect({ env: ctx.env, fs: ctx.fs });
   if (!detection.present) {
     ctx.prompts.note("No supported agent config found. Nothing to link.");

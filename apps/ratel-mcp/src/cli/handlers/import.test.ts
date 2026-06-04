@@ -9,6 +9,7 @@ const ROOT = "/r";
 const BIN: ResolvedBin = { command: "ratel-mcp", args: [], source: "path" };
 
 const HOME_CLAUDE = "/home/u/.claude.json";
+const HOME_CODEX = "/home/u/.codex/config.toml";
 const PROJECT_MCP = "/r/.mcp.json";
 const RATEL_USER = "/home/u/.ratel/config.json";
 const RATEL_PROJECT = "/r/.ratel/config.json";
@@ -214,6 +215,30 @@ describe("runImport", () => {
     expect(detected?.message).toContain("Claude Code (claude-code)");
     expect(detected?.message).toContain(`/home/u/.claude.json (1 MCP)`);
     expect(detected?.message).toContain(`/r/.mcp.json (1 MCP)`);
+  });
+
+  it("uses the requested agent instead of the automatic choice", async () => {
+    const fs = new MemFs();
+    fs.files.set(
+      HOME_CLAUDE,
+      JSON.stringify({
+        mcpServers: { claudeOnly: { type: "stdio", command: "claude" } },
+      }),
+    );
+    fs.files.set(
+      HOME_CODEX,
+      `[mcp_servers.codexOnly]
+command = "codex"
+`,
+    );
+    const { ctx } = ctxOf(fs, autoConfirm(), false);
+    await runImport(ctx, { bin: BIN, yes: true, agentKind: "codex" });
+
+    const ratelUser = JSON.parse(fs.files.get(RATEL_USER) as string);
+    expect(ratelUser.mcpServers.codexOnly).toEqual({ type: "stdio", command: "codex" });
+    expect(ratelUser.mcpServers.claudeOnly).toBeUndefined();
+    expect(fs.files.get(HOME_CLAUDE)).toContain("claudeOnly");
+    expect(fs.files.get(HOME_CODEX)).toContain("[mcp_servers.ratel-mcp]");
   });
 
   it("global+project: writes both Claude files with the right --config arg lists", async () => {

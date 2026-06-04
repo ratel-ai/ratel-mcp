@@ -1,4 +1,4 @@
-import type { ImportConflictStrategy } from "@ratel-ai/mcp-core";
+import { type ImportConflictStrategy, isSupportedAgentHostKind } from "@ratel-ai/mcp-core";
 import { ArgError } from "../args.js";
 import { runAdd } from "./add.js";
 import { runEdit } from "./edit.js";
@@ -22,6 +22,8 @@ Verbs:
   import  migrate Claude Code MCP configs into Ratel (two stages: Ratel write, then Claude rewrite)
   link    rewrite Claude Code's config to point at Ratel for entries already in Ratel scopes
   auth    drive an interactive OAuth flow for one or all http/sse upstreams that need authorization
+
+Agent-aware verbs accept --agent auto|claude-code|codex (default: auto).
 
 To start the gateway, see \`ratel-mcp serve\`.`;
 
@@ -48,10 +50,11 @@ export async function runMcp(ctx: HandlerCtx): Promise<void> {
         yes: flags.yes === true,
         dryRun: flags["dry-run"] === true,
         conflictStrategy: resolveImportConflictStrategy(flags["conflict-strategy"]),
+        agentKind: resolveAgentKind(flags.agent),
       });
       return;
     case "link":
-      await runLink(ctx, { yes: flags.yes === true });
+      await runLink(ctx, { yes: flags.yes === true, agentKind: resolveAgentKind(flags.agent) });
       return;
     case "auth":
       await runMcpAuth(ctx);
@@ -59,6 +62,17 @@ export async function runMcp(ctx: HandlerCtx): Promise<void> {
     default:
       throw new ArgError(`unknown mcp verb: ${verb}`);
   }
+}
+
+function resolveAgentKind(value: unknown) {
+  if (value === undefined || value === false || value === "auto") return undefined;
+  if (typeof value !== "string") {
+    throw new ArgError("--agent must be one of auto|claude-code|codex");
+  }
+  if (!isSupportedAgentHostKind(value)) {
+    throw new ArgError(`--agent must be one of auto|claude-code|codex, got "${value}"`);
+  }
+  return value;
 }
 
 function resolveImportConflictStrategy(value: unknown): ImportConflictStrategy | undefined {
