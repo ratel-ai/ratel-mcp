@@ -6,8 +6,6 @@ import { Route as rootRoute } from "./routes/__root";
 import { Route as AgentSetupRouteImport } from "./routes/agent-setup";
 import { Route as AgentSetupKindRouteImport } from "./routes/agent-setup/$kind";
 import { Route as IndexRouteImport } from "./routes/index";
-import { Route as LabBlocksRouteImport } from "./routes/lab/blocks";
-import { Route as LabKitchenRouteImport } from "./routes/lab/kitchen";
 import { Route as SkillsRouteImport } from "./routes/skills";
 import { Route as ToolsScopeNameRouteImport } from "./routes/tools/$scope/$name";
 import { Route as ToolsNewRouteImport } from "./routes/tools/new";
@@ -27,18 +25,6 @@ const AgentSetupRoute = AgentSetupRouteImport.update({
 const AgentSetupKindRoute = AgentSetupKindRouteImport.update({
   id: "/agent-setup/$kind",
   path: "/agent-setup/$kind",
-  getParentRoute: () => rootRoute,
-} as any);
-
-const LabBlocksRoute = LabBlocksRouteImport.update({
-  id: "/lab/blocks",
-  path: "/lab/blocks",
-  getParentRoute: () => rootRoute,
-} as any);
-
-const LabKitchenRoute = LabKitchenRouteImport.update({
-  id: "/lab/kitchen",
-  path: "/lab/kitchen",
   getParentRoute: () => rootRoute,
 } as any);
 
@@ -83,20 +69,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AgentSetupKindRouteImport;
       parentRoute: typeof rootRoute;
     };
-    "/lab/blocks": {
-      id: "/lab/blocks";
-      path: "/lab/blocks";
-      fullPath: "/lab/blocks";
-      preLoaderRoute: typeof LabBlocksRouteImport;
-      parentRoute: typeof rootRoute;
-    };
-    "/lab/kitchen": {
-      id: "/lab/kitchen";
-      path: "/lab/kitchen";
-      fullPath: "/lab/kitchen";
-      preLoaderRoute: typeof LabKitchenRouteImport;
-      parentRoute: typeof rootRoute;
-    };
     "/skills": {
       id: "/skills";
       path: "/skills";
@@ -126,8 +98,6 @@ export const routeTree = rootRoute
     AgentSetupRoute,
     AgentSetupKindRoute,
     IndexRoute,
-    LabBlocksRoute,
-    LabKitchenRoute,
     SkillsRoute,
     ToolsNewRoute,
     ToolsScopeNameRoute,
