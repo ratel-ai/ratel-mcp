@@ -103,7 +103,12 @@ export async function removeServer(
 export async function authServer(ctx: HandlerCtx, name: string): Promise<ApiResponse> {
   if (!name) throw new Error("name is required");
   const { result, log } = await withCapture(ctx, (c) => authorizeServer(c, name));
-  log.push(...formatAuthResults(result));
+  const resultLines = formatAuthResults(result);
+  log.push(...resultLines);
+  const failedLines = resultLines.filter((_, index) => result[index]?.status === "failed");
+  if (failedLines.length > 0) {
+    throw new Error(failedLines.join("\n"));
+  }
   return ok({ log });
 }
 

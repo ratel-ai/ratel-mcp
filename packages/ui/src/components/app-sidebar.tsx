@@ -1,18 +1,5 @@
-"use client"
+"use client";
 
-import * as React from "react"
-
-import { NavMain } from "@/components/nav-main"
-import { NavProjects } from "@/components/nav-projects"
-import { NavUser } from "@/components/nav-user"
-import { TeamSwitcher } from "@/components/team-switcher"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarRail,
-} from "@/components/ui/sidebar"
 import {
   BotIcon,
   BoxesIcon,
@@ -21,7 +8,19 @@ import {
   LinkIcon,
   Settings2Icon,
   TerminalSquareIcon,
-} from "lucide-react"
+} from "lucide-react";
+import type * as React from "react";
+import { NavMain } from "@/components/nav-main";
+import { NavProjects } from "@/components/nav-projects";
+import { NavUser } from "@/components/nav-user";
+import { TeamSwitcher } from "@/components/team-switcher";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from "@/components/ui/sidebar";
 
 // This is sample data.
 const data = {
@@ -33,26 +32,17 @@ const data = {
   teams: [
     {
       name: "Ratel MCP",
-      logo: (
-        <GalleryVerticalEndIcon
-        />
-      ),
+      logo: <GalleryVerticalEndIcon />,
       plan: "Gateway",
     },
     {
       name: "Claude Code",
-      logo: (
-        <BotIcon
-        />
-      ),
+      logo: <BotIcon />,
       plan: "Agent",
     },
     {
       name: "Codex",
-      logo: (
-        <TerminalSquareIcon
-        />
-      ),
+      logo: <TerminalSquareIcon />,
       plan: "Agent",
     },
   ],
@@ -60,10 +50,7 @@ const data = {
     {
       title: "Servers",
       url: "#",
-      icon: (
-        <BoxesIcon
-        />
-      ),
+      icon: <BoxesIcon />,
       isActive: true,
       items: [
         {
@@ -83,10 +70,7 @@ const data = {
     {
       title: "Auth",
       url: "#",
-      icon: (
-        <KeyRoundIcon
-        />
-      ),
+      icon: <KeyRoundIcon />,
       items: [
         {
           title: "OAuth sessions",
@@ -105,10 +89,7 @@ const data = {
     {
       title: "Agent Links",
       url: "#",
-      icon: (
-        <LinkIcon
-        />
-      ),
+      icon: <LinkIcon />,
       items: [
         {
           title: "Claude",
@@ -127,10 +108,7 @@ const data = {
     {
       title: "Settings",
       url: "#",
-      icon: (
-        <Settings2Icon
-        />
-      ),
+      icon: <Settings2Icon />,
       items: [
         {
           title: "General",
@@ -155,29 +133,20 @@ const data = {
     {
       name: "Filesystem",
       url: "#",
-      icon: (
-        <BoxesIcon
-        />
-      ),
+      icon: <BoxesIcon />,
     },
     {
       name: "GitHub",
       url: "#",
-      icon: (
-        <KeyRoundIcon
-        />
-      ),
+      icon: <KeyRoundIcon />,
     },
     {
       name: "Playwright",
       url: "#",
-      icon: (
-        <TerminalSquareIcon
-        />
-      ),
+      icon: <TerminalSquareIcon />,
     },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -194,5 +163,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

@@ -15,12 +15,7 @@ import {
   NamedAgentHostAdapter,
   SUPPORTED_AGENT_HOSTS,
 } from "./agent-host/index.js";
-import {
-  type BackupFs,
-  type BackupManifest,
-  listBackups,
-  startBackup,
-} from "./backup.js";
+import { type BackupFs, type BackupManifest, listBackups, startBackup } from "./backup.js";
 import { isRatelGatewayEntry } from "./gateway-entry.js";
 import { ProjectRootNotFoundError, type RatelScope, ratelConfigPath } from "./hierarchy.js";
 import {

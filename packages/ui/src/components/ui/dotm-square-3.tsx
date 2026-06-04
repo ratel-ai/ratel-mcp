@@ -1,12 +1,13 @@
 "use client";
 
 import type { CSSProperties } from "react";
-
-import { DotMatrixBase } from "@/lib/dotmatrix-core";
-import { useDotMatrixPhases } from "@/lib/dotmatrix-hooks";
-import { spiralInwardNormFromIndex, spiralInwardOrderValue } from "@/lib/dotmatrix-core";
-import { usePrefersReducedMotion } from "@/lib/dotmatrix-hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "@/lib/dotmatrix-core";
+import {
+  DotMatrixBase,
+  spiralInwardNormFromIndex,
+  spiralInwardOrderValue,
+} from "@/lib/dotmatrix-core";
+import { useDotMatrixPhases, usePrefersReducedMotion } from "@/lib/dotmatrix-hooks";
 
 export type DotmSquare3Props = DotMatrixCommonProps;
 
@@ -23,8 +24,8 @@ const animationResolver: DotAnimationResolver = ({ isActive, index, reducedMotio
     return {
       style: {
         ...style,
-        opacity: 0.16 + pathNorm * 0.78
-      }
+        opacity: 0.16 + pathNorm * 0.78,
+      },
     };
   }
 
@@ -39,10 +40,14 @@ export function DotmSquare3({
   ...rest
 }: DotmSquare3Props) {
   const reducedMotion = usePrefersReducedMotion();
-  const { phase: matrixPhase, onMouseEnter, onMouseLeave } = useDotMatrixPhases({
+  const {
+    phase: matrixPhase,
+    onMouseEnter,
+    onMouseLeave,
+  } = useDotMatrixPhases({
     animated: Boolean(animated && !reducedMotion),
     hoverAnimated: Boolean(hoverAnimated && !reducedMotion),
-    speed
+    speed,
   });
 
   return (

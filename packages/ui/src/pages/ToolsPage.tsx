@@ -60,6 +60,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import { DetailGrid, DetailLabel } from "@/components/ui/detail-grid";
 import {
   Field,
   FieldDescription,
@@ -69,12 +70,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupText,
-  InputGroupTextarea,
-} from "@/components/ui/input-group";
+import { InputGroup, InputGroupTextarea } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -444,7 +440,7 @@ export function ToolsPage() {
                 key={name}
                 name={name}
                 onAuthorize={() => {
-                  void runAction("Auth complete", () =>
+                  return runAction("Authorization updated", () =>
                     request(`/api/auth/${encodeURIComponent(name)}`, {
                       method: "POST",
                       body: {},
@@ -468,7 +464,7 @@ function ToolSourceRow(props: {
   busy: boolean;
   entry: ServerEntry;
   name: string;
-  onAuthorize: () => Promise<void> | void;
+  onAuthorize: () => Promise<unknown> | void;
   onOpen: () => void;
 }) {
   const canAuthorize =
@@ -539,7 +535,7 @@ function ToolSourceFilterSelect(props: {
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="font-mono text-[11px] text-muted-foreground uppercase">{props.label}</span>
+      <DetailLabel>{props.label}</DetailLabel>
       <Select value={props.value} onValueChange={props.onValueChange}>
         <SelectTrigger className="h-8 min-w-0 flex-1 bg-background px-2.5 text-xs sm:min-w-32">
           <SelectValue>{props.valueLabel}</SelectValue>
@@ -663,7 +659,7 @@ export function ToolSourceDetailPage(props: { name: string; scope: string }) {
   const editFormId = `tool-source-edit-${scope}-${props.name}`;
 
   const authorize = () =>
-    runAction("Auth complete", () =>
+    runAction("Authorization updated", () =>
       request(`/api/auth/${encodeURIComponent(props.name)}`, {
         method: "POST",
         body: {},
@@ -844,33 +840,33 @@ export function ToolSourceDetailPage(props: { name: string; scope: string }) {
         </section>
       ) : (
         <section className="grid gap-5">
-          <div className="-mx-4 grid gap-3 border-border border-y bg-muted/15 px-4 py-4 sm:-mx-6 sm:px-6 md:grid-cols-[10rem_minmax(0,1fr)]">
-            <span className="text-xs font-medium text-muted-foreground uppercase">Scope</span>
+          <DetailGrid>
+            <DetailLabel>Scope</DetailLabel>
             <Badge className="w-fit font-mono" variant="secondary">
               {scope}
             </Badge>
-            <span className="text-xs font-medium text-muted-foreground uppercase">Transport</span>
+            <DetailLabel>Transport</DetailLabel>
             <Badge className="w-fit font-mono" variant="secondary">
               {toolSourceTypeLabel(type)}
             </Badge>
-            <span className="text-xs font-medium text-muted-foreground uppercase">Target</span>
+            <DetailLabel>Target</DetailLabel>
             <code className="min-w-0 truncate rounded-md bg-background px-2 py-1.5 font-mono text-xs text-muted-foreground">
               {target}
             </code>
-            <span className="text-xs font-medium text-muted-foreground uppercase">Auth</span>
+            <DetailLabel>Auth</DetailLabel>
             <div className="flex flex-wrap items-center gap-2">
               <AuthStatusControl
                 busy={busy}
                 canAuthorize={canAuthorize}
-                onAuthorize={() => void authorize()}
+                onAuthorize={authorize}
                 status={authStatus}
               />
             </div>
-            <span className="text-xs font-medium text-muted-foreground uppercase">Description</span>
+            <DetailLabel>Description</DetailLabel>
             <p className="min-w-0 text-sm text-muted-foreground">
               {entry.description || "No description stored."}
             </p>
-          </div>
+          </DetailGrid>
 
           <section className="-mx-4 overflow-hidden border-border border-y sm:-mx-6">
             <div className="flex items-center justify-between gap-3 border-border border-b bg-muted/35 px-4 py-2 sm:px-6">
@@ -1217,9 +1213,6 @@ function EntryForm(props: {
                             placeholder={"Authorization: Bearer token\nX-Team: platform"}
                             value={field.state.value}
                           />
-                          <InputGroupAddon align="block-end">
-                            <InputGroupText>Header: value</InputGroupText>
-                          </InputGroupAddon>
                         </InputGroup>
                         {isInvalid && <FieldError errors={field.state.meta.errors} />}
                       </Field>
@@ -1429,7 +1422,7 @@ function AuthBadge({ status }: { status?: AuthStatus }) {
 function AuthStatusControl(props: {
   busy: boolean;
   canAuthorize: boolean;
-  onAuthorize: () => Promise<void> | void;
+  onAuthorize: () => Promise<unknown> | void;
   status?: AuthStatus;
 }) {
   const [authorizing, setAuthorizing] = useState(false);

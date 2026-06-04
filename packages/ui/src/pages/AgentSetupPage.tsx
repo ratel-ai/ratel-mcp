@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DetailGrid, DetailLabel } from "@/components/ui/detail-grid";
 import {
   Select,
   SelectContent,
@@ -412,30 +413,28 @@ export function AgentDetailPage(props: { kind: AgentHostKind; operation?: SetupF
 
       {host ? (
         <section className="grid gap-5">
-          <div className="-mx-4 grid gap-3 border-border border-y bg-muted/15 px-4 py-4 sm:-mx-6 sm:px-6 md:grid-cols-[10rem_minmax(0,1fr)]">
-            <span className="text-xs font-medium text-muted-foreground uppercase">Host</span>
+          <DetailGrid>
+            <DetailLabel>Host</DetailLabel>
             <div className="flex min-w-0 items-center gap-2">
               <AgentIcon kind={host.kind} />
               <span className="font-medium">{host.displayName}</span>
             </div>
-            <span className="text-xs font-medium text-muted-foreground uppercase">Status</span>
+            <DetailLabel>Status</DetailLabel>
             <LinkStatusBadge host={host} />
             {missingRatelEntryNames(host).length > 0 ? (
               <>
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Coverage
-                </span>
+                <DetailLabel>Coverage</DetailLabel>
                 <p className="text-sm text-amber-700 dark:text-amber-400">
                   {missingRatelEntryNames(host).length} native tool
                   {missingRatelEntryNames(host).length === 1 ? "" : "s"} not in Ratel.
                 </p>
               </>
             ) : null}
-            <span className="text-xs font-medium text-muted-foreground uppercase">Config</span>
+            <DetailLabel>Config</DetailLabel>
             <code className="min-w-0 truncate rounded-md bg-background px-2 py-1.5 font-mono text-xs text-muted-foreground">
               {primaryPath ?? "Known paths unavailable"}
             </code>
-          </div>
+          </DetailGrid>
 
           <AgentOperationPanel
             host={host}
@@ -1246,7 +1245,7 @@ function ScenePanel(props: {
   return (
     <div className={cn("grid gap-5 p-4", props.wide ? "sm:p-5" : "sm:p-5")}>
       <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase">{props.kicker}</p>
+        <DetailLabel>{props.kicker}</DetailLabel>
         <h3 className="mt-1 text-xl font-semibold tracking-tight">{props.title}</h3>
       </div>
       {props.children}
