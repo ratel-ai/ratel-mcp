@@ -129,20 +129,16 @@ interface FamilyDrawerTriggerProps {
 
 function FamilyDrawerTrigger({ children, asChild = false, className }: FamilyDrawerTriggerProps) {
   if (asChild) {
-    return <Drawer.Trigger render={<Slot />}>{children}</Drawer.Trigger>;
+    return <Drawer.Trigger asChild>{children}</Drawer.Trigger>;
   }
 
   return (
     <Drawer.Trigger
-      render={
-        <button
-          className={clsx(
-            "fixed top-1/2 left-1/2 h-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-lg border bg-background px-3.5 py-2 font-medium text-foreground antialiased transition-colors hover:bg-muted/60 focus-visible:shadow-focus-ring-button md:font-medium",
-            className,
-          )}
-          type="button"
-        />
-      }
+      className={clsx(
+        "fixed top-1/2 left-1/2 h-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-lg border bg-background px-3.5 py-2 font-medium text-foreground antialiased transition-colors hover:bg-muted/60 focus-visible:shadow-focus-ring-button md:font-medium",
+        className,
+      )}
+      type="button"
     >
       {children}
     </Drawer.Trigger>
@@ -207,11 +203,11 @@ function FamilyDrawerContent({ children, className, asChild = false }: FamilyDra
   if (asChild) {
     return (
       <Drawer.Content
+        asChild
         className={clsx(
           "fixed inset-x-4 bottom-4 z-20 mx-auto max-w-[380px] overflow-hidden rounded-xl border border-border bg-background shadow-2xl outline-none [--initial-transform:calc(100%+1.25rem)] md:mx-auto md:w-full",
           className,
         )}
-        render={<Slot />}
       >
         {content}
       </Drawer.Content>
@@ -290,19 +286,21 @@ interface FamilyDrawerCloseProps {
 
 function FamilyDrawerClose({ children, asChild = false, className }: FamilyDrawerCloseProps) {
   if (asChild) {
-    return <Drawer.Close render={<Slot />}>{children}</Drawer.Close>;
+    return <Drawer.Close asChild>{children}</Drawer.Close>;
   }
 
   return (
-    <Drawer.Close
-      data-vaul-no-drag=""
-      className={clsx(
-        "absolute top-4 right-4 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-muted-foreground transition-transform focus:scale-95 focus-visible:shadow-focus-ring-button active:scale-75",
-        className,
-      )}
-      render={<button type="button" />}
-    >
-      {children || <CloseIcon />}
+    <Drawer.Close asChild>
+      <button
+        data-vaul-no-drag=""
+        className={clsx(
+          "absolute top-4 right-4 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-muted-foreground transition-transform focus:scale-95 focus-visible:shadow-focus-ring-button active:scale-75",
+          className,
+        )}
+        type="button"
+      >
+        {children || <CloseIcon />}
+      </button>
     </Drawer.Close>
   );
 }

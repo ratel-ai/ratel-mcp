@@ -4,7 +4,7 @@
 
 import { Route as rootRoute } from "./routes/__root";
 import { Route as AgentSetupRouteImport } from "./routes/agent-setup";
-import { Route as AgentSetupKindRouteImport } from "./routes/agent-setup/$kind";
+import { Route as AgentSetupKindRouteImport } from "./routes/agent-setup.$kind";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as SkillsRouteImport } from "./routes/skills";
 import { Route as ToolsScopeNameRouteImport } from "./routes/tools/$scope/$name";

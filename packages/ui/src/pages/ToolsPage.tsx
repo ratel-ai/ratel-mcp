@@ -443,14 +443,14 @@ export function ToolsPage() {
                 entry={entry}
                 key={name}
                 name={name}
-                onAuthorize={() =>
-                  runAction("Auth complete", () =>
+                onAuthorize={() => {
+                  void runAction("Auth complete", () =>
                     request(`/api/auth/${encodeURIComponent(name)}`, {
                       method: "POST",
                       body: {},
                     }),
-                  )
-                }
+                  );
+                }}
                 onOpen={() => {
                   void navigate({ to: toolSourcePath(scope, name, token) } as never);
                 }}

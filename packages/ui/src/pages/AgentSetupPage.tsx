@@ -86,6 +86,17 @@ interface AgentHostsResponse {
   hosts: DetectedAgentHostSummary[];
 }
 
+function agentHostsFromResponse(body: unknown): DetectedAgentHostSummary[] {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    Array.isArray((body as AgentHostsResponse).hosts)
+  ) {
+    return (body as AgentHostsResponse).hosts;
+  }
+  return [];
+}
+
 interface AgentCandidate {
   name: string;
   scope: AgentScope;
@@ -166,15 +177,8 @@ const CODEX_ICON_SRC = new URL("../assets/codex-color.svg", import.meta.url).hre
 const CLAUDE_CODE_ICON_SRC = new URL("../assets/claudecode-color.svg", import.meta.url).href;
 
 export function AgentSetupPage() {
-  const {
-    clearSetupIntent,
-    config,
-    openCommandMenu,
-    refresh,
-    request,
-    setupIntent,
-    token,
-  } = useRatelApp();
+  const { clearSetupIntent, config, openCommandMenu, refresh, request, setupIntent, token } =
+    useRatelApp();
   const navigate = useNavigate();
   const [hosts, setHosts] = useState<DetectedAgentHostSummary[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -184,8 +188,10 @@ export function AgentSetupPage() {
   const scanHosts = useCallback(async () => {
     setScanning(true);
     try {
-      const body = await request<AgentHostsResponse>("/api/agent-hosts");
-      setHosts(body.hosts);
+      const body = await request<unknown>("/api/agent-hosts");
+      setHosts(agentHostsFromResponse(body));
+    } catch {
+      setHosts([]);
     } finally {
       setScanning(false);
     }
@@ -293,8 +299,10 @@ export function AgentDetailPage(props: { kind: AgentHostKind; operation?: SetupF
   const scanHosts = useCallback(async () => {
     setScanning(true);
     try {
-      const body = await request<AgentHostsResponse>("/api/agent-hosts");
-      setHosts(body.hosts);
+      const body = await request<unknown>("/api/agent-hosts");
+      setHosts(agentHostsFromResponse(body));
+    } catch {
+      setHosts([]);
     } finally {
       setScanning(false);
     }
@@ -791,10 +799,7 @@ function Backups(props: { backups: BackupManifest[] }) {
   );
 }
 
-function BackupRow(props: {
-  backup: BackupManifest;
-  latest: boolean;
-}) {
+function BackupRow(props: { backup: BackupManifest; latest: boolean }) {
   const paths = props.backup.entries.map((entry) => entry.originalPath).join(", ");
   return (
     <div

@@ -9,6 +9,7 @@
       "packages/**/*.tsx",
       "packages/**/*.js",
       "scripts/**/*.ts",
+      "!packages/**/src/routeTree.gen.ts",
       "!apps/**/dist",
       "!packages/**/dist"
     ]
