@@ -14,53 +14,105 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("detectProjectSignals", () => {
+const write = (rel: string, contents: string) => writeFile(join(dir, rel), contents);
+
+describe("detectProjectSignals — Node", () => {
   it("returns nothing for an empty directory", async () => {
     expect(await detectProjectSignals(dir)).toEqual([]);
   });
 
-  it("derives frontend terms from package.json deps (next/react)", async () => {
-    await writeFile(
-      join(dir, "package.json"),
-      JSON.stringify({ dependencies: { next: "15", react: "19" } }),
-    );
+  it("derives frontend terms from next/react via synonyms", async () => {
+    await write("package.json", JSON.stringify({ dependencies: { next: "15", react: "19" } }));
     const terms = await detectProjectSignals(dir);
     expect(terms).toContain("next.js");
     expect(terms).toContain("frontend");
     expect(terms).toContain("react");
   });
 
-  it("detects supabase from a scoped dependency", async () => {
-    await writeFile(
-      join(dir, "package.json"),
-      JSON.stringify({ dependencies: { "@supabase/supabase-js": "2" } }),
+  it("emits raw dependency-name tokens for packages not in any table", async () => {
+    await write(
+      "package.json",
+      JSON.stringify({ dependencies: { "@tanstack/react-query": "5", zustand: "4" } }),
     );
     const terms = await detectProjectSignals(dir);
-    expect(terms).toContain("supabase");
-    expect(terms).toContain("database");
+    // no hardcoded rule for these — their own names become the signal
+    expect(terms).toEqual(expect.arrayContaining(["tanstack", "react", "query", "zustand"]));
   });
 
-  it("detects stack from marker files (Cargo.toml, supabase/config.toml)", async () => {
-    await writeFile(join(dir, "Cargo.toml"), "[package]");
-    await mkdir(join(dir, "supabase"), { recursive: true });
-    await writeFile(join(dir, "supabase", "config.toml"), "");
+  it("detects supabase from a scoped dependency (pattern synonym)", async () => {
+    await write("package.json", JSON.stringify({ dependencies: { "@supabase/supabase-js": "2" } }));
     const terms = await detectProjectSignals(dir);
-    expect(terms).toContain("rust");
-    expect(terms).toContain("supabase");
+    expect(terms).toEqual(expect.arrayContaining(["supabase", "database"]));
   });
 
   it("de-duplicates overlapping terms", async () => {
-    await writeFile(
-      join(dir, "package.json"),
-      JSON.stringify({ dependencies: { next: "15" }, devDependencies: { react: "19" } }),
-    );
-    await writeFile(join(dir, "next.config.js"), "module.exports = {}");
+    await write("package.json", JSON.stringify({ dependencies: { next: "15" } }));
+    await write("next.config.js", "module.exports = {}");
     const terms = await detectProjectSignals(dir);
     expect(new Set(terms).size).toBe(terms.length);
   });
 
   it("survives malformed package.json", async () => {
-    await writeFile(join(dir, "package.json"), "{ not json");
+    await write("package.json", "{ not json");
     expect(await detectProjectSignals(dir)).toEqual([]);
+  });
+});
+
+describe("detectProjectSignals — Python", () => {
+  it("detects django from requirements.txt (name + synonyms)", async () => {
+    await write("requirements.txt", "Django>=4.2,<5\npsycopg2-binary\n# a comment\n");
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["django", "backend", "python"]));
+  });
+
+  it("detects fastapi from a PEP 621 pyproject.toml", async () => {
+    await write(
+      "pyproject.toml",
+      '[project]\nname = "x"\ndependencies = ["fastapi>=0.110", "uvicorn[standard]"]\n',
+    );
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["fastapi", "api", "python", "uvicorn"]));
+  });
+
+  it("detects deps from a Poetry pyproject.toml and skips the python pin", async () => {
+    await write(
+      "pyproject.toml",
+      '[tool.poetry.dependencies]\npython = "^3.11"\ndjango = "^5.0"\n',
+    );
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toContain("django");
+  });
+});
+
+describe("detectProjectSignals — Rust / Go / Ruby / PHP", () => {
+  it("detects rust crates from Cargo.toml", async () => {
+    await write("Cargo.toml", '[package]\nname = "x"\n[dependencies]\naxum = "0.7"\nserde = "1"\n');
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["rust", "axum", "backend", "serde"]));
+  });
+
+  it("detects go modules from go.mod, dropping the host segment", async () => {
+    await write(
+      "go.mod",
+      "module example.com/x\n\ngo 1.22\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9.1\n)\n",
+    );
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["golang", "gin"]));
+    expect(terms).not.toContain("github"); // host segment stripped
+  });
+
+  it("detects gems from a Gemfile", async () => {
+    await write("Gemfile", "source 'https://rubygems.org'\ngem 'rails', '~> 7.1'\n");
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["ruby", "rails", "backend"]));
+  });
+
+  it("detects composer packages, skipping php/ext-*", async () => {
+    await write(
+      "composer.json",
+      JSON.stringify({ require: { php: "^8.2", "laravel/framework": "^11", "ext-pdo": "*" } }),
+    );
+    const terms = await detectProjectSignals(dir);
+    expect(terms).toEqual(expect.arrayContaining(["php", "laravel", "framework", "web"]));
   });
 });
