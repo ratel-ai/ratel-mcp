@@ -129,7 +129,7 @@ describe("createMcpServer", () => {
     await handle.close();
   });
 
-  it("forwards upstreamServers into the listed search_tools description", async () => {
+  it("forwards upstreamServers into the listed search_capabilities description", async () => {
     const catalog = new ToolCatalog();
 
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
@@ -155,7 +155,7 @@ describe("createMcpServer", () => {
     await handle.close();
   });
 
-  it("exposes exactly search_tools and invoke_tool via tools/list", async () => {
+  it("exposes exactly search_capabilities and invoke_tool via tools/list", async () => {
     const catalog = new ToolCatalog();
     catalog.register(localTool("echo", "Echo a message back to the caller.", (a) => a));
 
@@ -169,7 +169,7 @@ describe("createMcpServer", () => {
     await handle.close();
   });
 
-  it("search_tools roundtrips BM25 hits grouped by upstream MCP", async () => {
+  it("search_capabilities roundtrips BM25 hits grouped by upstream MCP", async () => {
     const catalog = new ToolCatalog();
     catalog.register(
       localTool("wx__weather", "Get the current weather forecast for a city.", () => ({})),

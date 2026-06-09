@@ -21,7 +21,7 @@ async function fakeUpstream() {
 }
 
 describe("runCli — serve", () => {
-  it("reads the config, builds the gateway, and exposes search_tools + invoke_tool over the given downstream transport", async () => {
+  it("reads the config, builds the gateway, and exposes search_capabilities + invoke_tool over the given downstream transport", async () => {
     const upstream = await fakeUpstream();
     const [downstreamServerTransport, downstreamClientTransport] =
       InMemoryTransport.createLinkedPair();
@@ -58,7 +58,7 @@ describe("runCli — serve", () => {
     await upstream.server.close();
   });
 
-  it("threads upstream descriptions and tool counts into search_tools' listed description", async () => {
+  it("threads upstream descriptions and tool counts into search_capabilities' listed description", async () => {
     const upstream = await fakeUpstream();
     const [downstreamServerTransport, downstreamClientTransport] =
       InMemoryTransport.createLinkedPair();
