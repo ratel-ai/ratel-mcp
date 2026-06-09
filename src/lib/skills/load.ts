@@ -19,7 +19,7 @@ export interface LoadSkillsOptions {
  * Each `<dir>/<name>/SKILL.md` becomes one {@link Skill}: frontmatter supplies
  * `name` / `description` / `tags`; the Markdown body is the dispatch payload,
  * with any bundled `scripts/` and sibling `*.md` files appended as absolute
- * paths so the agent can reach them after `invoke_skill`.
+ * paths so the agent can reach them after `get_skill_content`.
  *
  * Loading is fail-soft per skill: a malformed `SKILL.md` is logged and skipped,
  * never crashing gateway boot. Missing directories are silently ignored. When

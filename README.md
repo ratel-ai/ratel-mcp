@@ -18,7 +18,7 @@
 
 `@ratel-ai/mcp-server` is two things in one package:
 
-- a **library** that takes a Ratel [`ToolCatalog`](https://github.com/ratel-ai/ratel) and exposes it as a Model Context Protocol server — the MCP client (Claude Desktop, an agent framework, an `@modelcontextprotocol/sdk` `Client`) sees `search_tools` + `invoke_tool` instead of every upstream's full tool list;
+- a **library** that takes a Ratel [`ToolCatalog`](https://github.com/ratel-ai/ratel) and exposes it as a Model Context Protocol server — the MCP client (Claude Desktop, an agent framework, an `@modelcontextprotocol/sdk` `Client`) sees `search_capabilities` + `invoke_tool` (plus `get_skill_content` when skills are configured) instead of every upstream's full tool list;
 - a **CLI** (`ratel-mcp`) that drops the gateway between an MCP host (Claude Code, Cursor, ChatGPT) and an arbitrary set of upstream MCP servers — with Claude-compatible config UX, three-scope hierarchy, OAuth 2.1 / PKCE for HTTP+SSE upstreams, and a one-shot `mcp import` wizard for migrating an existing Claude Code MCP setup.
 
 This is the inverse of `@ratel-ai/sdk`'s [`registerMcpServer`](https://github.com/ratel-ai/ratel/blob/main/src/sdk/ts/README.md#registermcpserver--index-an-mcp-servers-tools-into-the-catalog), which ingests an upstream MCP server's tools *into* a catalog. `createMcpServer` exposes a catalog *as* an MCP server.
@@ -164,7 +164,7 @@ const handle = await createMcpServer(catalog, {
 await handle.close();
 ```
 
-The MCP client connected to the other end will see exactly two tools: `search_tools` and `invoke_tool`. The catalog's tools are reachable through `invoke_tool`, never listed directly — that's the whole point (see [ADR 0003 in `ratel-ai/ratel`](https://github.com/ratel-ai/ratel/blob/main/docs/adr/0003-tool-selection-replace-vs-suggest.md)).
+The MCP client connected to the other end will see `search_capabilities` and `invoke_tool` (and `get_skill_content` when skills are present). `search_capabilities` returns a `tools` bucket and a `skills` bucket. The catalog's tools are reachable through `invoke_tool`, never listed directly — that's the whole point (see [ADR 0003 in `ratel-ai/ratel`](https://github.com/ratel-ai/ratel/blob/main/docs/adr/0003-tool-selection-replace-vs-suggest.md)).
 
 ### `buildGatewayFromConfig`
 
@@ -207,7 +207,7 @@ The config mirrors Claude Code's `.claude.json` `mcpServers` shape:
 }
 ```
 
-`type` defaults to `"stdio"` when absent. `description` is optional metadata — used to seed the agent's awareness of each upstream via `search_tools`'s description, never sent over the upstream transport. `stdio` and `http` are wired up by `defaultTransportFactory`; `sse` and unknown types are accepted by `parseConfig` but skipped at runtime by the default factory (provide your own factory for sse).
+`type` defaults to `"stdio"` when absent. `description` is optional metadata — used to seed the agent's awareness of each upstream via `search_capabilities`'s description, never sent over the upstream transport. `stdio` and `http` are wired up by `defaultTransportFactory`; `sse` and unknown types are accepted by `parseConfig` but skipped at runtime by the default factory (provide your own factory for sse).
 
 ## Result wrapping
 
@@ -220,7 +220,7 @@ Every `tools/call` response carries the gateway's return value as a JSON-seriali
 }
 ```
 
-Arrays (e.g. the hits returned by `search_tools`) only travel in `content[0].text`, since MCP requires `structuredContent` to be a JSON object.
+Arrays (e.g. the tool hits returned by `search_capabilities`) only travel in `content[0].text`, since MCP requires `structuredContent` to be a JSON object.
 
 When `invoke_tool` drives a tool that was itself registered via `registerMcpServer`, the upstream's MCP-shaped result (`{ content, structuredContent }`) is nested inside our `structuredContent` one level deeper.
 
@@ -248,6 +248,6 @@ CI runs all of the above on every PR.
 
 ## Related
 
-- [`@ratel-ai/sdk`](https://github.com/ratel-ai/ratel/blob/main/src/sdk/ts/README.md) — the TypeScript SDK with `ToolCatalog`, `searchToolsTool`, `invokeToolTool`, `registerMcpServer`. Bundles `ratel-ai-core` (BM25 retrieval) via NAPI-RS.
+- [`@ratel-ai/sdk`](https://github.com/ratel-ai/ratel/blob/main/src/sdk/ts/README.md) — the TypeScript SDK with `ToolCatalog`, `searchCapabilitiesTool`, `invokeToolTool`, `registerMcpServer`. Bundles `ratel-ai-core` (BM25 retrieval) via NAPI-RS.
 - [`@ratel-ai/cli`](https://github.com/ratel-ai/ratel/tree/main/src/integrations/cli) — the long-term Ratel artifacts CLI (telemetry inspection today).
 - [`ratel-ai/ratel`](https://github.com/ratel-ai/ratel) — overview, roadmap, ADRs, benchmark links.

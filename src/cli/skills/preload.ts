@@ -21,7 +21,7 @@ export interface PreloadDeps {
 /**
  * Hook core: given a parsed `UserPromptSubmit` payload, return the
  * `additionalContext` string to inject — a directive pointer naming the exact
- * skill id(s) and the `invoke_skill` call — or `null` to inject nothing.
+ * skill id(s) and the `get_skill_content` call — or `null` to inject nothing.
  *
  * Pure over its dependencies. De-dupes per session so the same skill isn't
  * re-nudged on every prompt.

@@ -3,13 +3,13 @@
 Status: **Implemented (pointer mode)** · Created: 2026-06-08
 
 > **Shipped decisions:** matching = **prompt + project signals**; injection = **pointer only** (the hook
-> names the exact skill id and instructs the model to load it via `invoke_skill`, rather than inlining the
+> names the exact skill id and instructs the model to load it via `get_skill_content`, rather than inlining the
 > body). See "Implementation" at the bottom for the delivered CLI surface and the residual-risk note.
 
 ## Summary
 
 Make relevant skills show up **without the agent having to ask** for them. Today a skill surfaces only
-when the model decides to call `search_skills`, or — once tool-coupling lands — when it calls a related
+when the model decides to call `search_capabilities`, or — once tool-coupling lands — when it calls a related
 tool. This proposal adds a third, earlier trigger: **the user's prompt itself**. When you type "set up auth
 with Supabase," Ratel ranks the skill catalog against that prompt (and the project's signals) and injects
 the top skill(s) into the turn, so Claude writes code already looking at your Supabase playbook.
@@ -86,7 +86,7 @@ themselves ship in the repo (`.ratel/skills/` or a configured dir) and are ranke
 | Risk | Mitigation |
 |---|---|
 | Injecting irrelevant skills (noise/token cost) | Score floor + low cap (1–2) + per-session de-dupe; `--min-score` tunable. |
-| Big skill bodies blow the turn budget | Inject a **pointer + 1-line description** by default ("a `supabase-auth` skill is available — say so to load it"), full body only above a higher score, or always via `invoke_skill`. |
+| Big skill bodies blow the turn budget | Inject a **pointer + 1-line description** by default ("a `supabase-auth` skill is available — say so to load it"), full body only above a higher score, or always via `get_skill_content`. |
 | Latency on every prompt | BM25 over a local file set is sub-ms; signal detection is a few `stat`s. Hard-cap the hook's time budget and fail open (inject nothing). |
 | Hook fragility across OSes | Ship it as a `ratel` subcommand (Node), not a bash script. |
 | Surprise / lack of control | Strictly opt-in install; `ratel skill suggest --dry-run`; a kill switch env var. |
@@ -94,7 +94,7 @@ themselves ship in the repo (`.ratel/skills/` or a configured dir) and are ranke
 ## Open questions (for the review)
 
 1. **Inject body vs. pointer?** Full body = zero extra round-trip but costs tokens up front; pointer = the
-   model decides to `invoke_skill`, cheaper but one more hop. Probably: pointer by default, body above a
+   model decides to `get_skill_content`, cheaper but one more hop. Probably: pointer by default, body above a
    high-confidence score.
 2. **Prompt-only vs. prompt+project signals in v1?** Project signals add real power but more surface area.
    Could ship prompt-only first.
@@ -113,8 +113,9 @@ themselves ship in the repo (`.ratel/skills/` or a configured dir) and are ranke
 ## Relationship to shipped work
 
 - Reuses the `SkillCatalog` + BM25 core already shipped (ADR-0011 in the library repo).
-- Complements **tool-coupled skills** (`relatedSkills` on `search_tools`/`invoke_tool`) — that triggers on
-  tool use; this triggers on the prompt. Together they cover "before you act" and "as you act."
+- Complements the **pull path** (the `skills` bucket of `search_capabilities`) — that surfaces skills while
+  the agent searches for a tool; this triggers on the prompt with no tool involved. Together they cover the
+  tool-adjacent and the no-tool cases.
 - Independent of the **`ratel skill activate/deactivate`** move-in/move-back CLI, but naturally bundled with it.
 
 ## Implementation (delivered)
@@ -148,6 +149,6 @@ Pointer mode, prompt + project signals. All in `ratel-mcp`, reusing the shipped 
 ```
 
 **Residual risk (pointer mode):** the hook reliably *injects* the nudge (a system reminder the model reads
-deterministically), but the model must still make the `invoke_skill` call, and that call only resolves when
+deterministically), but the model must still make the `get_skill_content` call, and that call only resolves when
 the gateway is running with the skill loaded. The nudge names the exact id + tool to maximize compliance. A
 future `--body` flag could inline the skill for zero-hop certainty.
