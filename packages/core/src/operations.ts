@@ -49,7 +49,7 @@ export interface CoreContext {
   log?: (message: string) => void;
 }
 
-export type AuthStatus = "n/a" | "needs auth" | "expired" | "ok";
+export type AuthStatus = "n/a" | "needs auth" | "expired" | "ok" | "unsupported";
 
 export interface ConfigScopeStateAvailable {
   available: true;
@@ -93,11 +93,15 @@ export async function resolveAuthStatus(
   if (entry.type !== "http" && entry.type !== "sse") return "n/a";
   if (!ctx.env.homeDir) return "needs auth";
   const path = join(ctx.env.homeDir, ".ratel", "oauth", `${name}.json`);
-  const stored = await readJson<{ tokens?: { access_token?: string }; expires_at?: number }>(
-    ctx.fs,
-    path,
-  );
-  if (!stored?.tokens?.access_token) return "needs auth";
+  const stored = await readJson<{
+    tokens?: { access_token?: string };
+    expires_at?: number;
+    unsupported?: { reason?: string; detected_at?: string };
+  }>(ctx.fs, path);
+  if (!stored?.tokens?.access_token) {
+    if (stored?.unsupported?.reason) return "unsupported";
+    return "needs auth";
+  }
   if (typeof stored.expires_at === "number" && stored.expires_at < Date.now()) {
     return "expired";
   }

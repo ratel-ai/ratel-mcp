@@ -105,7 +105,10 @@ export async function authServer(ctx: HandlerCtx, name: string): Promise<ApiResp
   const { result, log } = await withCapture(ctx, (c) => authorizeServer(c, name));
   const resultLines = formatAuthResults(result);
   log.push(...resultLines);
-  const failedLines = resultLines.filter((_, index) => result[index]?.status === "failed");
+  const failedLines = resultLines.filter((_, index) => {
+    const status = result[index]?.status;
+    return status === "failed" || status === "unsupported";
+  });
   if (failedLines.length > 0) {
     throw new Error(failedLines.join("\n"));
   }

@@ -175,6 +175,7 @@ describe("runMcpAuth", () => {
             local: { type: "stdio", command: "x" },
             fresh: { type: "http", url: "https://fresh.example" },
             unconfigured: { type: "http", url: "https://no-tokens.example" },
+            unsupported: { type: "http", url: "https://unsupported.example" },
           },
         }),
       );
@@ -194,6 +195,15 @@ describe("runMcpAuth", () => {
           expires_at: Date.now() + 23 * 3600 * 1000,
         }),
       );
+      fs.files.set(
+        "/home/u/.ratel/oauth/unsupported.json",
+        JSON.stringify({
+          unsupported: {
+            reason: "OAuth client registration was rejected",
+            detected_at: new Date().toISOString(),
+          },
+        }),
+      );
 
       const runner = vi.fn();
       const logs: string[] = [];
@@ -207,6 +217,7 @@ describe("runMcpAuth", () => {
       expect(all).toMatch(/local\s+\[n\/a\]/);
       expect(all).toMatch(/fresh\s+\[ok\]/);
       expect(all).toMatch(/unconfigured\s+\[needs auth\]/);
+      expect(all).toMatch(/unsupported\s+\[unsupported\].*OAuth client registration was rejected/);
     });
   });
 

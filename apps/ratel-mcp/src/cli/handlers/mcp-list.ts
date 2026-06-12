@@ -10,11 +10,12 @@ import type { HandlerCtx } from "./types.js";
 
 const SCOPES: readonly RatelScope[] = ["user", "project", "local"];
 
-type AuthStatus = "n/a" | "needs auth" | "expired" | "ok";
+type AuthStatus = "n/a" | "needs auth" | "expired" | "ok" | "unsupported";
 
 interface StoredOAuth {
   tokens?: { access_token?: string };
   expires_at?: number;
+  unsupported?: { reason?: string; detected_at?: string };
 }
 
 export async function runMcpList(ctx: HandlerCtx): Promise<void> {
@@ -68,7 +69,10 @@ async function resolveAuthStatus(
   if (!ctx.env.homeDir) return "needs auth";
   const path = join(ctx.env.homeDir, ".ratel", "oauth", `${name}.json`);
   const stored = await readJson<StoredOAuth>(ctx.fs, path);
-  if (!stored?.tokens?.access_token) return "needs auth";
+  if (!stored?.tokens?.access_token) {
+    if (stored?.unsupported?.reason) return "unsupported";
+    return "needs auth";
+  }
   if (typeof stored.expires_at === "number" && stored.expires_at < Date.now()) {
     return "expired";
   }

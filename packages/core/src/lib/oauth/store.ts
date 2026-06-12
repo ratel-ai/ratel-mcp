@@ -12,6 +12,11 @@ import lockfile from "proper-lockfile";
 
 export type ClearScope = "all" | "tokens" | "client" | "verifier" | "discovery";
 
+export interface UnsupportedOAuthMarker {
+  reason: string;
+  detected_at: string;
+}
+
 export interface OAuthStoreState {
   tokens?: OAuthTokens;
   expires_at?: number;
@@ -19,6 +24,7 @@ export interface OAuthStoreState {
   code_verifier?: string;
   state?: string;
   discovery_state?: OAuthDiscoveryState;
+  unsupported?: UnsupportedOAuthMarker;
 }
 
 const DIR_MODE = 0o700;
@@ -91,6 +97,9 @@ export class RatelOAuthStore {
     if (parsed.discovery_state !== undefined) {
       state.discovery_state = parsed.discovery_state as OAuthDiscoveryState;
     }
+    if (isUnsupportedOAuthMarker(parsed.unsupported)) {
+      state.unsupported = parsed.unsupported;
+    }
     return state;
   }
 
@@ -101,6 +110,7 @@ export class RatelOAuthStore {
       if (partial.tokens !== undefined) {
         const validated = OAuthTokensSchema.parse(partial.tokens);
         next.tokens = validated;
+        delete next.unsupported;
         next.expires_at =
           typeof validated.expires_in === "number"
             ? Date.now() + validated.expires_in * 1000
@@ -163,4 +173,13 @@ export class RatelOAuthStore {
       // best-effort
     });
   }
+}
+
+function isUnsupportedOAuthMarker(value: unknown): value is UnsupportedOAuthMarker {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { reason?: unknown }).reason === "string" &&
+    typeof (value as { detected_at?: unknown }).detected_at === "string"
+  );
 }

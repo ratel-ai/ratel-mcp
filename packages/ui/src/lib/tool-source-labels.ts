@@ -13,6 +13,7 @@ export const AUTH_STATUS_LABELS: Record<AuthStatus, string> = {
   expired: "Expired",
   "n/a": "No auth",
   ok: "Ready",
+  unsupported: "Unsupported",
 };
 
 export function toolSourceTypeLabel(type: ToolSourceType) {

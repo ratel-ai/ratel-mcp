@@ -464,7 +464,7 @@ function ToolSourceRow(props: {
   busy: boolean;
   entry: ServerEntry;
   name: string;
-  onAuthorize: () => Promise<unknown> | void;
+  onAuthorize: () => Promise<unknown> | undefined;
   onOpen: () => void;
 }) {
   const canAuthorize =
@@ -655,7 +655,9 @@ export function ToolSourceDetailPage(props: { name: string; scope: string }) {
   const code = JSON.stringify({ [props.name]: entry }, null, 2);
   const type = entryTypeOf(entry);
   const target = summaryOf(entry);
-  const canAuthorize = entry.type === "http" || entry.type === "sse";
+  const canAuthorize =
+    (entry.type === "http" || entry.type === "sse") &&
+    (authStatus === "needs auth" || authStatus === "expired");
   const editFormId = `tool-source-edit-${scope}-${props.name}`;
 
   const authorize = () =>
@@ -1422,7 +1424,7 @@ function AuthBadge({ status }: { status?: AuthStatus }) {
 function AuthStatusControl(props: {
   busy: boolean;
   canAuthorize: boolean;
-  onAuthorize: () => Promise<unknown> | void;
+  onAuthorize: () => Promise<unknown> | undefined;
   status?: AuthStatus;
 }) {
   const [authorizing, setAuthorizing] = useState(false);
@@ -1471,6 +1473,8 @@ function authControlTextClassName(status?: AuthStatus) {
     status === "needs auth" &&
       "border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-200",
     status === "expired" && "border-border bg-muted text-muted-foreground",
+    status === "unsupported" &&
+      "border-destructive/30 bg-destructive/10 text-destructive dark:bg-destructive/15",
     (!status || status === "n/a" || status === "ok") &&
       "border-border bg-background text-foreground",
   );

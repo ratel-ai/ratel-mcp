@@ -97,6 +97,8 @@ describe("core operations — config state", () => {
           remote: { type: "http", url: "https://example.com/mcp" },
           expired: { type: "http", url: "https://expired.example/mcp" },
           ready: { type: "http", url: "https://ready.example/mcp" },
+          unsupported: { type: "http", url: "https://unsupported.example/mcp" },
+          recovered: { type: "http", url: "https://recovered.example/mcp" },
         },
       }),
     );
@@ -108,6 +110,25 @@ describe("core operations — config state", () => {
       `${HOME}/.ratel/oauth/ready.json`,
       JSON.stringify({ tokens: { access_token: "x" }, expires_at: Date.now() + 100000 }),
     );
+    fs.files.set(
+      `${HOME}/.ratel/oauth/unsupported.json`,
+      JSON.stringify({
+        unsupported: {
+          reason: "OAuth client registration was rejected",
+          detected_at: new Date().toISOString(),
+        },
+      }),
+    );
+    fs.files.set(
+      `${HOME}/.ratel/oauth/recovered.json`,
+      JSON.stringify({
+        tokens: { access_token: "x" },
+        unsupported: {
+          reason: "OAuth client registration was rejected",
+          detected_at: new Date().toISOString(),
+        },
+      }),
+    );
 
     const state = await getConfigState(ctx(fs));
     expect(state.scopes.user.available).toBe(true);
@@ -116,6 +137,8 @@ describe("core operations — config state", () => {
     expect(state.scopes.user.authStatus.remote).toBe("needs auth");
     expect(state.scopes.user.authStatus.expired).toBe("expired");
     expect(state.scopes.user.authStatus.ready).toBe("ok");
+    expect(state.scopes.user.authStatus.unsupported).toBe("unsupported");
+    expect(state.scopes.user.authStatus.recovered).toBe("ok");
   });
 });
 
