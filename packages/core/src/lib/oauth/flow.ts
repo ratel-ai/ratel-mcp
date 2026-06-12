@@ -21,7 +21,7 @@ export interface AuthFlowOptions {
 
 export interface AuthFlowResult {
   name: string;
-  status: "authorized" | "skipped" | "failed";
+  status: "authorized" | "skipped" | "failed" | "unsupported";
   reason?: string;
   /** Which path produced this row (only meaningful when status === "authorized"). */
   mode?: AuthMode;
@@ -41,12 +41,17 @@ export interface AuthStepFailure {
   reason: string;
 }
 
+export interface AuthStepUnsupported {
+  status: "unsupported";
+  reason: string;
+}
+
 export interface AuthStepSkip {
   status: "skipped";
   reason: string;
 }
 
-export type AuthStepResult = AuthStepSuccess | AuthStepFailure | AuthStepSkip;
+export type AuthStepResult = AuthStepSuccess | AuthStepFailure | AuthStepSkip | AuthStepUnsupported;
 
 export interface AuthStepCtx {
   catalog: ToolCatalog;
@@ -193,6 +198,7 @@ export interface PkceFlowDeps {
   callbackFactory: typeof startOAuthCallback;
   logger: (m: string) => void;
   callbackTimeoutMs?: number;
+  fetch?: typeof fetch;
 }
 
 export type PkceFlowFn = (
@@ -284,6 +290,9 @@ const defaultRefreshTransportFactory = (
   );
 };
 
+const UNSUPPORTED_OAUTH_REASON =
+  "OAuth client registration was rejected by the authorization server. This MCP server may only allow approved MCP clients.";
+
 /** Interactive PKCE flow against a loopback callback server. */
 export async function runPkceFlow(
   name: string,
@@ -310,6 +319,7 @@ export async function runPkceFlow(
 
   try {
     const store = new RatelOAuthStore(storePath(name));
+    const oauthFetchTracker = createOAuthFetchTracker(store, deps.fetch ?? fetch);
     const provider = new RatelOAuthProvider({
       store,
       redirectUrl: cb.url,
@@ -327,7 +337,10 @@ export async function runPkceFlow(
     });
 
     const tx1 = wrapTransportWithSendMutex(
-      new StreamableHTTPClientTransport(new URL(entry.url), { authProvider: provider }),
+      new StreamableHTTPClientTransport(new URL(entry.url), {
+        authProvider: provider,
+        fetch: oauthFetchTracker.fetch,
+      }),
     );
     try {
       const handle = await registerMcpServer(ctx.catalog, { name, transport: tx1 });
@@ -335,6 +348,10 @@ export async function runPkceFlow(
     } catch (err) {
       if (!isUnauthorized(err)) {
         await safeClose(tx1);
+        if (oauthFetchTracker.isUnsupportedOAuth()) {
+          await markUnsupported(store);
+          return { status: "unsupported", reason: UNSUPPORTED_OAUTH_REASON };
+        }
         return { status: "failed", reason: (err as Error).message };
       }
     }
@@ -348,7 +365,10 @@ export async function runPkceFlow(
       return { status: "failed", reason: `${name}: ${(err as Error).message}` };
     }
 
-    const tx2 = new StreamableHTTPClientTransport(new URL(entry.url), { authProvider: provider });
+    const tx2 = new StreamableHTTPClientTransport(new URL(entry.url), {
+      authProvider: provider,
+      fetch: oauthFetchTracker.fetch,
+    });
     try {
       await tx2.finishAuth(code);
     } catch (err) {
@@ -361,7 +381,10 @@ export async function runPkceFlow(
     await safeClose(tx2);
 
     const tx3 = wrapTransportWithSendMutex(
-      new StreamableHTTPClientTransport(new URL(entry.url), { authProvider: provider }),
+      new StreamableHTTPClientTransport(new URL(entry.url), {
+        authProvider: provider,
+        fetch: oauthFetchTracker.fetch,
+      }),
     );
     try {
       const handle = await registerMcpServer(ctx.catalog, { name, transport: tx3 });
@@ -372,6 +395,79 @@ export async function runPkceFlow(
     }
   } finally {
     if (cb) await cb.close().catch(() => undefined);
+  }
+}
+
+function createOAuthFetchTracker(store: RatelOAuthStore, fetchImpl: typeof fetch) {
+  let unsupportedOAuth = false;
+  const trackedFetch: typeof fetch = async (input, init) => {
+    const method = requestMethod(input, init);
+    const url = requestUrl(input);
+    const response = await fetchImpl(input, init);
+    if (method === "POST" && response.status === 403) {
+      const registrationEndpoint = await currentRegistrationEndpoint(store);
+      if (registrationEndpoint && sameUrl(url, registrationEndpoint)) {
+        const body = await readJsonBody(response);
+        if (!isOAuthErrorResponse(body)) unsupportedOAuth = true;
+      }
+    }
+    return response;
+  };
+  return {
+    fetch: trackedFetch,
+    isUnsupportedOAuth: () => unsupportedOAuth,
+  };
+}
+
+async function markUnsupported(store: RatelOAuthStore): Promise<void> {
+  await store.save({
+    unsupported: {
+      reason: UNSUPPORTED_OAUTH_REASON,
+      detected_at: new Date().toISOString(),
+    },
+  });
+}
+
+async function currentRegistrationEndpoint(store: RatelOAuthStore): Promise<string | undefined> {
+  const metadata = (await store.load()).discovery_state?.authorizationServerMetadata as
+    | { registration_endpoint?: unknown }
+    | undefined;
+  return typeof metadata?.registration_endpoint === "string"
+    ? metadata.registration_endpoint
+    : undefined;
+}
+
+function requestMethod(input: Parameters<typeof fetch>[0], init: Parameters<typeof fetch>[1]) {
+  return (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+}
+
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return String(input);
+  return input.url;
+}
+
+async function readJsonBody(response: Response): Promise<unknown> {
+  try {
+    return await response.clone().json();
+  } catch {
+    return undefined;
+  }
+}
+
+function isOAuthErrorResponse(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as { error?: unknown }).error === "string"
+  );
+}
+
+function sameUrl(actual: string, expected: string): boolean {
+  try {
+    return new URL(actual).href === new URL(expected).href;
+  } catch {
+    return actual === expected;
   }
 }
 

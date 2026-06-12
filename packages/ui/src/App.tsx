@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 import "./App.css";
 
 export type RatelScope = "user" | "project" | "local";
-export type AuthStatus = "n/a" | "needs auth" | "expired" | "ok";
+export type AuthStatus = "n/a" | "needs auth" | "expired" | "ok" | "unsupported";
 type AgentHostKind = "claude-code" | "codex";
 type AgentPosture = "unavailable" | "empty" | "not-linked" | "ratel-only" | "mixed";
 
@@ -254,6 +254,7 @@ export function AppShell() {
         return true;
       } catch (err) {
         notify((err as Error).message, "error");
+        await refresh();
         return false;
       } finally {
         setBusy(false);
@@ -753,6 +754,7 @@ export function useRatelApp() {
 export function authBadgeVariant(status?: AuthStatus) {
   if (status === "needs auth") return "warning" as const;
   if (status === "expired") return "muted" as const;
+  if (status === "unsupported") return "destructive" as const;
   return "outline" as const;
 }
 

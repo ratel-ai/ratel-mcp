@@ -66,6 +66,22 @@ describe("RatelOAuthStore", () => {
     expect(state.tokens?.access_token).toBe("atk");
   });
 
+  it("saveTokens clears a previous unsupported marker", async () => {
+    const store = newStore();
+    await store.save({
+      unsupported: {
+        reason: "OAuth client registration was rejected",
+        detected_at: new Date().toISOString(),
+      },
+    });
+    await store.save({
+      tokens: { access_token: "atk", token_type: "Bearer", expires_in: 60 },
+    });
+    const state = await store.load();
+    expect(state.tokens?.access_token).toBe("atk");
+    expect(state.unsupported).toBeUndefined();
+  });
+
   it("clear('tokens') drops tokens and expires_at but keeps client_information", async () => {
     const store = newStore();
     await store.save({

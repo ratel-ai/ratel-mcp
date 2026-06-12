@@ -52,9 +52,10 @@ function printResults(ctx: HandlerCtx, results: AuthFlowResult[]): void {
 interface StoredOAuth {
   tokens?: { access_token?: string; refresh_token?: string };
   expires_at?: number;
+  unsupported?: { reason?: string; detected_at?: string };
 }
 
-type CheckStatus = "n/a" | "needs auth" | "expired" | "ok";
+type CheckStatus = "n/a" | "needs auth" | "expired" | "ok" | "unsupported";
 
 async function printCheckReport(ctx: HandlerCtx, config: RatelConfig): Promise<void> {
   const lines: string[] = [];
@@ -76,6 +77,9 @@ async function checkUpstream(
   const path = join(ctx.env.homeDir, ".ratel", "oauth", `${name}.json`);
   const stored = await readJson<StoredOAuth>(ctx.fs, path);
   if (!stored?.tokens?.access_token) {
+    if (stored?.unsupported?.reason) {
+      return { status: "unsupported", detail: stored.unsupported.reason };
+    }
     return { status: "needs auth", detail: "no tokens stored" };
   }
   const expiresAt = typeof stored.expires_at === "number" ? stored.expires_at : undefined;

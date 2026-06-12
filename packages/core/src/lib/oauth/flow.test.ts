@@ -109,6 +109,29 @@ describe("runAuthFlow", () => {
     expect(stripe?.needsAuth).toBe(true);
   });
 
+  it("returns unsupported rows without marking the upstream authorized", async () => {
+    const { catalog, upstreams, handles, configEntries } = setup();
+    const step: AuthStep = async () => ({
+      status: "unsupported",
+      reason: "OAuth client registration was rejected",
+    });
+
+    const results = await runAuthFlow({
+      catalog,
+      upstreams,
+      handles,
+      configEntries,
+      step,
+      opts: { name: "stripe" },
+    });
+
+    expect(results).toEqual([
+      { name: "stripe", status: "unsupported", reason: "OAuth client registration was rejected" },
+    ]);
+    expect(upstreams.find((u) => u.name === "stripe")?.needsAuth).toBe(true);
+    expect(handles.has("stripe")).toBe(false);
+  });
+
   it("treats step throws as failed rows", async () => {
     const { catalog, upstreams, handles, configEntries } = setup();
     const step: AuthStep = async (name) => {

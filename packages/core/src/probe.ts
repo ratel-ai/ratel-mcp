@@ -85,7 +85,7 @@ export interface AuthProbeOptions {
 }
 
 export interface AuthProbeResult {
-  status: "authorized" | "failed" | "skipped";
+  status: "authorized" | "failed" | "skipped" | "unsupported";
   reason?: string;
   /** `serverInstructions` from the upstream when the flow succeeds. */
   instructions?: string;
