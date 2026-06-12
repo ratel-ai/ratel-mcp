@@ -13,6 +13,7 @@ import { ArgError, type ParsedArgs, parseArgs } from "./args.js";
 import { BACKUP_USAGE, runBackup } from "./handlers/backup.js";
 import { MCP_USAGE, runMcp } from "./handlers/mcp.js";
 import { runServe } from "./handlers/serve.js";
+import { runSkill, SKILL_USAGE } from "./handlers/skill.js";
 import type { HandlerCtx } from "./handlers/types.js";
 import { runUi } from "./handlers/ui.js";
 import { type PromptAdapter, silentPromptAdapter } from "./prompts.js";
@@ -41,6 +42,7 @@ Commands:
   serve    start the gateway over stdio (use --config <path>; repeat for multi-file merge)
   mcp      manage MCP servers (add, remove, list, get, edit, import, link, auth)
   backup   manage backup snapshots (list)
+  skill    move skills between Claude Code and Ratel (activate, deactivate, list)
   ui       launch a local browser UI mirroring the CLI [--port N] [--no-open]
 
 Run \`ratel-mcp <group>\` for the verbs available in a group.`;
@@ -77,6 +79,11 @@ export async function runCli(argv: string[], options: RunCliOptions = {}): Promi
     return {};
   }
 
+  if (parsed.group === "skill" && parsed.verb === undefined) {
+    log(SKILL_USAGE);
+    return {};
+  }
+
   if (parsed.group === "serve") {
     return runServe(parsed, options, log);
   }
@@ -100,6 +107,11 @@ export async function runCli(argv: string[], options: RunCliOptions = {}): Promi
 
   if (parsed.group === "backup") {
     await runBackup(ctx);
+    return {};
+  }
+
+  if (parsed.group === "skill") {
+    await runSkill(ctx);
     return {};
   }
 

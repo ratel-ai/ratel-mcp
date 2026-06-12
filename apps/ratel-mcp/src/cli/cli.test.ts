@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { AUTH_TOOL_ID } from "@ratel-ai/mcp-core";
-import { INVOKE_TOOL_ID, SEARCH_TOOLS_ID } from "@ratel-ai/sdk";
+import { INVOKE_TOOL_ID, SEARCH_CAPABILITIES_ID } from "@ratel-ai/sdk";
 import { describe, expect, it } from "vitest";
 import { runCli } from "./cli.js";
 
@@ -21,7 +21,7 @@ async function fakeUpstream() {
 }
 
 describe("runCli — serve", () => {
-  it("reads the config, builds the gateway, and exposes search_tools + invoke_tool over the given downstream transport", async () => {
+  it("reads the config, builds the gateway, and exposes search_capabilities + invoke_tool over the given downstream transport", async () => {
     const upstream = await fakeUpstream();
     const [downstreamServerTransport, downstreamClientTransport] =
       InMemoryTransport.createLinkedPair();
@@ -39,26 +39,26 @@ describe("runCli — serve", () => {
     await client.connect(downstreamClientTransport);
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      [SEARCH_TOOLS_ID, INVOKE_TOOL_ID, AUTH_TOOL_ID].sort(),
+      [SEARCH_CAPABILITIES_ID, INVOKE_TOOL_ID, AUTH_TOOL_ID].sort(),
     );
 
     const search = await client.callTool({
-      name: SEARCH_TOOLS_ID,
+      name: SEARCH_CAPABILITIES_ID,
       arguments: { query: "ping" },
     });
     const text = (search.content as Array<{ text: string }>)[0].text;
     const parsed = JSON.parse(text) as {
-      groups: Array<{ server: { name: string }; hits: Array<{ toolId: string }> }>;
+      tools: { groups: Array<{ server: { name: string }; hits: Array<{ toolId: string }> }> };
     };
-    expect(parsed.groups[0].server.name).toBe("up");
-    expect(parsed.groups[0].hits[0].toolId).toBe("up__ping");
+    expect(parsed.tools.groups[0].server.name).toBe("up");
+    expect(parsed.tools.groups[0].hits[0].toolId).toBe("up__ping");
 
     await client.close();
     await shutdown?.();
     await upstream.server.close();
   });
 
-  it("threads upstream descriptions and tool counts into search_tools' listed description", async () => {
+  it("threads upstream descriptions and tool counts into search_capabilities' listed description", async () => {
     const upstream = await fakeUpstream();
     const [downstreamServerTransport, downstreamClientTransport] =
       InMemoryTransport.createLinkedPair();
@@ -77,7 +77,7 @@ describe("runCli — serve", () => {
     const client = new Client({ name: "test", version: "0.0.0" });
     await client.connect(downstreamClientTransport);
     const { tools } = await client.listTools();
-    const search = tools.find((t) => t.name === SEARCH_TOOLS_ID);
+    const search = tools.find((t) => t.name === SEARCH_CAPABILITIES_ID);
     expect(search?.description).toContain("upstream MCP servers");
     expect(search?.description).toContain("- up — ping server (1 tools)");
 

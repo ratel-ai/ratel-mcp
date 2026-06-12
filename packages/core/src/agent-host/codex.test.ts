@@ -47,7 +47,7 @@ REGION = "eu"
 command = "ratel-mcp"
 args = ["serve", "--config", "/home/u/.ratel/config.json"]
 
-[mcp_servers.ratel-mcp.tools.search_tools]
+[mcp_servers.ratel-mcp.tools.search_capabilities]
 enabled = true
 `);
 
@@ -58,7 +58,7 @@ enabled = true
       env: { TOKEN: "secret", REGION: "eu" },
     });
     expect(entries["fs.env"]).toBeUndefined();
-    expect(entries["ratel-mcp.tools.search_tools"]).toBeUndefined();
+    expect(entries["ratel-mcp.tools.search_capabilities"]).toBeUndefined();
     expect(entries["ratel-mcp"]?.args).toEqual(["serve", "--config", "/home/u/.ratel/config.json"]);
   });
 
@@ -189,7 +189,7 @@ TOKEN = "keep"
 command = "ratel-mcp"
 args = ["serve", "--config", "/old.json"]
 
-[mcp_servers.ratel-mcp.tools.search_tools]
+[mcp_servers.ratel-mcp.tools.search_capabilities]
 enabled = true
 `,
       new Set(["fs"]),
@@ -197,7 +197,7 @@ enabled = true
     );
 
     expect(next).not.toContain("/old.json");
-    expect(next).not.toContain("[mcp_servers.ratel-mcp.tools.search_tools]");
+    expect(next).not.toContain("[mcp_servers.ratel-mcp.tools.search_capabilities]");
     expect(next.match(/\[mcp_servers\.ratel-mcp\]/g)).toHaveLength(1);
   });
 
