@@ -13,6 +13,14 @@ hooks/hooks.json            # Claude Code plugin hook config
 skills/                     # shared Agent Skills
 ```
 
+Claude Code marketplaces live at `.claude-plugin/marketplace.json`. The repo
+root marketplace points at `./apps/ratel-mcp/plugin`, which works for both
+local validation from the repo root and GitHub distribution.
+
+Claude Code currently supports display names in plugin and marketplace metadata,
+but its documented manifest schema does not include icon or logo fields. The
+shared `assets/icon.svg` remains referenced by the Codex manifest.
+
 The MCP server starts with:
 
 ```bash
@@ -33,15 +41,15 @@ Claude Code uses `$CLAUDE_PLUGIN_DATA/hooks.jsonl`. If neither plugin data direc
 
 ## Codex Local Validation
 
-Add the app package directory as a local Codex marketplace root:
+Add the repo root as a local Codex marketplace root:
 
 ```bash
-codex plugin marketplace add /Users/marcelloghiozzi/ratel-mcp/apps/ratel-mcp
+codex plugin marketplace add .
 ```
 
-That directory contains `.agents/plugins/marketplace.json`, which points Codex
-at `./plugin`. Then restart Codex, install **Ratel MCP** from the **Ratel
-Local** marketplace, and start a new thread.
+The repo root contains `.agents/plugins/marketplace.json`, which points Codex at
+`./apps/ratel-mcp/plugin`. Then restart Codex, install **Ratel MCP** from the
+**Ratel** marketplace, and start a new thread.
 
 ## Claude Code Local Validation
 
@@ -49,9 +57,24 @@ From the repo root:
 
 ```bash
 claude plugin validate ./apps/ratel-mcp/plugin
+claude plugin validate .
 ```
 
-Then install or load the plugin using Claude Code's plugin workflow and run `/reload-plugins` if the session is already open.
+Add the local repo marketplace from inside Claude Code:
+
+```bash
+/plugin marketplace add .
+/plugin install ratel-mcp@ratel
+/reload-plugins
+```
+
+For GitHub distribution, publish the repo and add the root marketplace:
+
+```bash
+/plugin marketplace add ratel-ai/ratel-mcp
+/plugin install ratel-mcp@ratel
+/reload-plugins
+```
 
 ## Configure Upstreams
 
