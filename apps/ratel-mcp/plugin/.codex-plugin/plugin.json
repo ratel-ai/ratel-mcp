@@ -40,6 +40,7 @@
       "Open the Ratel UI"
     ],
     "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg",
     "brandColor": "#2F8F6B",
     "screenshots": []
   }
