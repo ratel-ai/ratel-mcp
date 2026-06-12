@@ -35,10 +35,11 @@
     ],
     "websiteURL": "https://github.com/ratel-ai/ratel-mcp",
     "defaultPrompt": [
-      "Use Ratel MCP for this tool task",
-      "Import my MCP setup into Ratel",
-      "Debug my Ratel MCP gateway"
+      "Use Ratel MCP to find the right tool for this task",
+      "Import my Codex MCP servers into Ratel",
+      "Open the Ratel UI"
     ],
+    "composerIcon": "./assets/icon.svg",
     "brandColor": "#2F8F6B",
     "screenshots": []
   }
