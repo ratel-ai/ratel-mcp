@@ -108,10 +108,11 @@ export function SkillsPage() {
             deactivate to move it back.
           </PageHeaderDescription>
         </PageHeaderContent>
-        <PageHeaderActions className="hidden sm:flex">
+        <PageHeaderActions className="hidden items-center sm:flex">
           <NewSkillDialog onCreated={load} />
           {canActivateAll && (
             <Button
+              className="h-10"
               disabled={busy}
               onClick={() => void mutate("Activated all skills", "/api/skills/activate")}
               size="sm"
@@ -211,7 +212,7 @@ function SkillSection(props: {
         {props.skills.map((skill) => (
           <li
             key={skill.id}
-            className="flex items-start justify-between gap-3 rounded-md border border-border bg-card p-3"
+            className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -294,7 +295,7 @@ function NewSkillDialog(props: { onCreated: () => void | Promise<void> }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>New skill</DialogTrigger>
+      <DialogTrigger render={<Button className="h-10" size="sm" />}>New skill</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New skill</DialogTitle>
