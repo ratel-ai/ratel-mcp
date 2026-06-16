@@ -21,7 +21,7 @@ import {
   type SupportedAgentHostKind,
 } from "@ratel-ai/mcp-core";
 import type { HandlerCtx } from "../cli/handlers/types.js";
-import { defaultSkillManagePaths } from "../cli/skills/manage.js";
+import { activateSkills, deactivateSkills, defaultSkillManagePaths } from "../cli/skills/manage.js";
 
 export interface ApiResponse {
   status: number;
@@ -53,22 +53,54 @@ export async function getAgentHosts(ctx: HandlerCtx): Promise<ApiResponse> {
 }
 
 /**
- * The skills Ratel currently serves through the gateway: those under the
- * Ratel-managed folder (`~/.ratel/skills`), loaded the same way the gateway
- * loads them. Read-only — moving skills in/out is the `ratel-mcp skill` CLI.
+ * The skills Ratel serves (under the managed folder `~/.ratel/skills`) plus the
+ * Claude Code skills available to activate (under `~/.claude/skills`, not yet
+ * managed). Loaded the same way the gateway loads them.
  */
 export async function getSkills(ctx: HandlerCtx): Promise<ApiResponse> {
-  const { managedDir } = defaultSkillManagePaths(ctx.env.homeDir);
-  const skills = await loadSkills([managedDir], { logger: ctx.log });
+  const { managedDir, nativeDir } = defaultSkillManagePaths(ctx.env.homeDir);
+  const managed = await loadSkills([managedDir], { logger: ctx.log });
+  const managedIds = new Set(managed.map((s) => s.id));
+  const native = await loadSkills([nativeDir], { logger: ctx.log });
+  const available = native.filter((s) => !managedIds.has(s.id));
   return ok({
-    dir: managedDir,
-    skills: skills.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      tags: s.tags ?? [],
-    })),
+    managedDir,
+    nativeDir,
+    managed: managed.map(skillSummary),
+    available: available.map(skillSummary),
   });
+}
+
+function skillSummary(s: { id: string; name: string; description: string; tags?: string[] }) {
+  return { id: s.id, name: s.name, description: s.description, tags: s.tags ?? [] };
+}
+
+/** Move skills into the Ratel-managed folder. `ids` omitted = activate all. */
+export async function activateSkillsRoute(
+  ctx: HandlerCtx,
+  body: { ids?: unknown },
+): Promise<ApiResponse> {
+  const ids = optionalStringArray(body.ids, "ids");
+  const log: string[] = [];
+  const result = await activateSkills(defaultSkillManagePaths(ctx.env.homeDir), {
+    ids,
+    logger: (m) => log.push(m),
+  });
+  return ok({ log, moved: result.moved.map((m) => m.id), skipped: result.skipped });
+}
+
+/** Restore managed skills back to `~/.claude/skills`. `ids` omitted = deactivate all. */
+export async function deactivateSkillsRoute(
+  ctx: HandlerCtx,
+  body: { ids?: unknown },
+): Promise<ApiResponse> {
+  const ids = optionalStringArray(body.ids, "ids");
+  const log: string[] = [];
+  const result = await deactivateSkills(defaultSkillManagePaths(ctx.env.homeDir), {
+    ids,
+    logger: (m) => log.push(m),
+  });
+  return ok({ log, restored: result.restored.map((m) => m.id), skipped: result.skipped });
 }
 
 export async function openFile(

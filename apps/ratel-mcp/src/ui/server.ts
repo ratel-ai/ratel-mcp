@@ -12,11 +12,13 @@ import { fileURLToPath } from "node:url";
 import type { HandlerCtx } from "../cli/handlers/types.js";
 import {
   type ApiResponse,
+  activateSkillsRoute,
   addServer,
   applyImportAgent,
   applyImportRatel,
   applyLink,
   authServer,
+  deactivateSkillsRoute,
   doImport,
   doLink,
   editServer,
@@ -134,6 +136,14 @@ async function route(
   }
   if (method === "GET" && path === "/api/skills") {
     return getSkills(ctx);
+  }
+  if (method === "POST" && path === "/api/skills/activate") {
+    const body = await readJsonBody(req);
+    return activateSkillsRoute(ctx, body);
+  }
+  if (method === "POST" && path === "/api/skills/deactivate") {
+    const body = await readJsonBody(req);
+    return deactivateSkillsRoute(ctx, body);
   }
   if (method === "POST" && path === "/api/open-file") {
     const body = await readJsonBody(req);

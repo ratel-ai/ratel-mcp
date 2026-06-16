@@ -40,6 +40,8 @@ export interface ManageOptions {
   logger?: (message: string) => void;
   /** When true, report what would move without touching the filesystem. */
   dryRun?: boolean;
+  /** Restrict the operation to these skill ids. Omit to operate on all. */
+  ids?: string[];
   /** Injectable clock for deterministic tests. */
   now?: () => Date;
 }
@@ -78,6 +80,7 @@ export async function activateSkills(
   // in case the throw was the manifest write itself.
   try {
     for (const id of await skillDirNames(paths.nativeDir)) {
+      if (options.ids && !options.ids.includes(id)) continue;
       const from = join(paths.nativeDir, id);
       const to = join(paths.managedDir, id);
       if (already.has(id) || (await exists(to))) {
@@ -135,6 +138,10 @@ export async function deactivateSkills(
       log("[ratel] malformed manifest entry — leaving managed, skipping restore");
       continue;
     }
+    if (options.ids && !options.ids.includes(entry.id)) {
+      remaining.push(entry);
+      continue;
+    }
     if (!isSafeSkillId(entry.id)) {
       // The manifest is untrusted on read (stale cross-machine copy, corruption,
       // tampering). Never move based on an id that isn't a single safe segment.
@@ -170,7 +177,10 @@ export async function deactivateSkills(
     log(`[ratel] restored skill ${entry.id} → ${dest}`);
   }
 
-  if (!options.dryRun) {
+  // Only rewrite the manifest when it actually changed (an entry was restored or
+  // dropped). Avoids touching disk — and failing on a missing/unwritable `.ratel`
+  // dir — when there was nothing to deactivate.
+  if (!options.dryRun && remaining.length !== manifest.managed.length) {
     await writeManifest(paths.manifestPath, { version: 1, managed: remaining });
   }
   return { restored, skipped };

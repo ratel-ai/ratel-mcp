@@ -130,12 +130,48 @@ describe("UI server — auth", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 + the managed skills (an array) on /api/skills with the correct bearer token", async () => {
+  it("returns 200 + managed/available skill buckets on /api/skills with the correct bearer token", async () => {
     const res = await fetch(apiUrl("/api/skills"), { headers: authHeaders() });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { dir: string; skills: unknown[] };
-    expect(body.dir.endsWith("/.ratel/skills")).toBe(true);
-    expect(Array.isArray(body.skills)).toBe(true);
+    const body = (await res.json()) as {
+      managedDir: string;
+      nativeDir: string;
+      managed: unknown[];
+      available: unknown[];
+    };
+    expect(body.managedDir.endsWith("/.ratel/skills")).toBe(true);
+    expect(body.nativeDir.endsWith("/.claude/skills")).toBe(true);
+    expect(Array.isArray(body.managed)).toBe(true);
+    expect(Array.isArray(body.available)).toBe(true);
+  });
+
+  it("returns 401 on POST /api/skills/activate and /deactivate without a bearer token", async () => {
+    const a = await fetch(apiUrl("/api/skills/activate"), { method: "POST" });
+    const d = await fetch(apiUrl("/api/skills/deactivate"), { method: "POST" });
+    expect(a.status).toBe(401);
+    expect(d.status).toBe(401);
+  });
+
+  it("activates skills via POST /api/skills/activate (no-op when none present)", async () => {
+    const res = await fetch(apiUrl("/api/skills/activate"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { moved: string[]; skipped: unknown[] };
+    expect(Array.isArray(body.moved)).toBe(true);
+  });
+
+  it("deactivates skills via POST /api/skills/deactivate (no-op when none managed)", async () => {
+    const res = await fetch(apiUrl("/api/skills/deactivate"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ ids: ["nonexistent"] }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { restored: string[] };
+    expect(Array.isArray(body.restored)).toBe(true);
   });
 
   it("returns 401 on GET / without the t query param", async () => {

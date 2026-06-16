@@ -92,6 +92,16 @@ describe("activateSkills", () => {
     expect(await exists(join(paths.managedDir, "api-design", "SKILL.md"))).toBe(false);
     expect(await exists(paths.manifestPath)).toBe(false);
   });
+
+  it("with `ids` activates only the selected skills", async () => {
+    await writeNativeSkill("alpha");
+    await writeNativeSkill("beta");
+    const result = await activateSkills(paths, { ids: ["alpha"] });
+    expect(result.moved.map((m) => m.id)).toEqual(["alpha"]);
+    expect(await exists(join(paths.managedDir, "alpha", "SKILL.md"))).toBe(true);
+    expect(await exists(join(paths.managedDir, "beta"))).toBe(false);
+    expect(await exists(join(paths.nativeDir, "beta", "SKILL.md"))).toBe(true);
+  });
 });
 
 describe("deactivateSkills", () => {
@@ -135,6 +145,16 @@ describe("deactivateSkills", () => {
   it("does nothing when there is no manifest", async () => {
     const result = await deactivateSkills(paths);
     expect(result.restored).toEqual([]);
+  });
+
+  it("with `ids` deactivates only the selected skills", async () => {
+    await writeNativeSkill("alpha");
+    await writeNativeSkill("beta");
+    await activateSkills(paths);
+    const result = await deactivateSkills(paths, { ids: ["alpha"] });
+    expect(result.restored.map((m) => m.id)).toEqual(["alpha"]);
+    expect(await exists(join(paths.nativeDir, "alpha", "SKILL.md"))).toBe(true);
+    expect((await listManaged(paths)).map((m) => m.id)).toEqual(["beta"]);
   });
 
   it("restores to the canonical native path, ignoring a stale/crafted originalPath (#7)", async () => {
