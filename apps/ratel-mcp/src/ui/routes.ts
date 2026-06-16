@@ -86,6 +86,30 @@ function skillSummary(s: { id: string; name: string; description: string; tags?:
   return { id: s.id, name: s.name, description: s.description, tags: s.tags ?? [] };
 }
 
+/** Full detail (including the body) of a single skill, by id. */
+export async function getSkill(ctx: HandlerCtx, id: string): Promise<ApiResponse> {
+  const { managedDir, nativeDir } = defaultSkillManagePaths(ctx.env.homeDir);
+  const active = (await loadSkills([managedDir], { logger: ctx.log })).find((s) => s.id === id);
+  if (active) return ok(skillDetail(active, "active"));
+  const available = (await loadSkills([nativeDir], { logger: ctx.log })).find((s) => s.id === id);
+  if (available) return ok(skillDetail(available, "available"));
+  return { status: 404, body: { error: `unknown skill: ${id}`, isError: true } };
+}
+
+function skillDetail(
+  s: { id: string; name: string; description: string; tags?: string[]; body?: string },
+  state: "active" | "available",
+) {
+  return {
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    tags: s.tags ?? [],
+    body: s.body ?? "",
+    state,
+  };
+}
+
 /** Move skills into the Ratel-managed folder. `ids` omitted = activate all. */
 export async function activateSkillsRoute(
   ctx: HandlerCtx,

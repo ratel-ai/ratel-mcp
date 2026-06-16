@@ -25,6 +25,7 @@ import {
   editServer,
   getAgentHosts,
   getConfig,
+  getSkill,
   getSkills,
   openFile,
   previewImport,
@@ -149,6 +150,10 @@ async function route(
   if (method === "POST" && path === "/api/skills/deactivate") {
     const body = await readJsonBody(req);
     return deactivateSkillsRoute(ctx, body);
+  }
+  const skillMatch = /^\/api\/skills\/([^/]+)$/.exec(path);
+  if (method === "GET" && skillMatch) {
+    return getSkill(ctx, decodeURIComponent(skillMatch[1]));
   }
   if (method === "POST" && path === "/api/open-file") {
     const body = await readJsonBody(req);

@@ -197,6 +197,16 @@ describe("UI server — auth", () => {
     expect(unsafe.status).toBe(400);
   });
 
+  it("returns 401 on GET /api/skills/:id without a bearer token", async () => {
+    const res = await fetch(apiUrl("/api/skills/whatever"));
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 for an unknown skill id on GET /api/skills/:id", async () => {
+    const res = await fetch(apiUrl("/api/skills/does-not-exist"), { headers: authHeaders() });
+    expect(res.status).toBe(404);
+  });
+
   it("returns 401 on GET / without the t query param", async () => {
     const res = await fetch(apiUrl("/"));
     expect(res.status).toBe(401);

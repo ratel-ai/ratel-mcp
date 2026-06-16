@@ -47,6 +47,11 @@ interface SkillsResponse {
   problems: SkillProblem[];
 }
 
+interface SkillDetail extends SkillSummary {
+  body: string;
+  state: string;
+}
+
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -55,6 +60,7 @@ type LoadState =
 export function SkillsPage() {
   const { openCommandMenu, request, runAction, busy } = useRatelApp();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -208,6 +214,7 @@ export function SkillsPage() {
         <SkillSection
           title="Active"
           caption={`Served by the gateway from ${ready.managedDir ?? ""}`}
+          onView={setDetailId}
           skills={managed}
           renderAction={(skill) => (
             <Button
@@ -228,6 +235,7 @@ export function SkillsPage() {
         <SkillSection
           title="Available"
           caption={`Claude Code skills in ${ready.nativeDir ?? ""}, not yet served`}
+          onView={setDetailId}
           skills={available}
           renderAction={(skill) => (
             <Button
@@ -242,6 +250,8 @@ export function SkillsPage() {
           )}
         />
       )}
+
+      <SkillDetailDialog id={detailId} onClose={() => setDetailId(null)} />
     </main>
   );
 }
@@ -252,6 +262,7 @@ function SkillSection(props: {
   title: string;
   caption: string;
   skills: SkillSummary[];
+  onView: (id: string) => void;
   renderAction: (skill: SkillSummary) => ReactNode;
 }) {
   const [page, setPage] = useState(0);
@@ -274,10 +285,14 @@ function SkillSection(props: {
             key={skill.id}
             className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3"
           >
-            <div className="min-w-0">
+            <button
+              className="min-w-0 text-left"
+              onClick={() => props.onView(skill.id)}
+              type="button"
+            >
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 shrink-0 text-brand-green" />
-                <strong className="truncate font-medium">{skill.name}</strong>
+                <strong className="truncate font-medium hover:underline">{skill.name}</strong>
               </div>
               {skill.description && (
                 <p className="mt-1 text-muted-foreground text-sm">{skill.description}</p>
@@ -294,7 +309,7 @@ function SkillSection(props: {
                   ))}
                 </div>
               )}
-            </div>
+            </button>
             <div className="shrink-0">{props.renderAction(skill)}</div>
           </li>
         ))}
@@ -441,6 +456,69 @@ function NewSkillDialog(props: { onCreated: () => void | Promise<void> }) {
             Create
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SkillDetailDialog(props: { id: string | null; onClose: () => void }) {
+  const { request } = useRatelApp();
+  const [detail, setDetail] = useState<SkillDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (props.id === null) return;
+    setDetail(null);
+    setError(null);
+    let cancelled = false;
+    request<SkillDetail>(`/api/skills/${encodeURIComponent(props.id)}`)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load skill");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.id, request]);
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) props.onClose();
+      }}
+      open={props.id !== null}
+    >
+      <DialogContent className="max-h-[80vh] overflow-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{detail?.name ?? props.id ?? "Skill"}</DialogTitle>
+          {detail && <DialogDescription>{detail.description}</DialogDescription>}
+        </DialogHeader>
+        {error && <p className="text-destructive text-sm">{error}</p>}
+        {!detail && !error && <p className="text-muted-foreground text-sm">Loading…</p>}
+        {detail && (
+          <div className="grid gap-3">
+            <p className="text-muted-foreground text-xs">
+              {detail.state === "active" ? "Served by the gateway" : "Available (not yet served)"}
+            </p>
+            {detail.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {detail.tags.map((t) => (
+                  <span
+                    className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs"
+                    key={t}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 font-mono text-xs">
+              {detail.body || "(no instructions)"}
+            </pre>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
