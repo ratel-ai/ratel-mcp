@@ -81,6 +81,7 @@ export function SkillsPage() {
   const managed = ready?.managed ?? [];
   const available = ready?.available ?? [];
   const canActivateAll = available.length > 0;
+  const canDeactivateAll = managed.length > 0;
 
   return (
     <main className="grid w-full gap-4 px-4 py-5 sm:px-6">
@@ -119,6 +120,17 @@ export function SkillsPage() {
               variant="outline"
             >
               Activate all
+            </Button>
+          )}
+          {canDeactivateAll && (
+            <Button
+              className="h-10"
+              disabled={busy}
+              onClick={() => void mutate("Deactivated all skills", "/api/skills/deactivate")}
+              size="sm"
+              variant="outline"
+            >
+              Deactivate all
             </Button>
           )}
           <ResponsiveToolbar>
@@ -194,12 +206,20 @@ export function SkillsPage() {
   );
 }
 
+const PAGE_SIZE = 8;
+
 function SkillSection(props: {
   title: string;
   caption: string;
   skills: SkillSummary[];
   renderAction: (skill: SkillSummary) => ReactNode;
 }) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(props.skills.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * PAGE_SIZE;
+  const visible = props.skills.slice(start, start + PAGE_SIZE);
+
   return (
     <section className="grid gap-2">
       <div className="px-1">
@@ -209,7 +229,7 @@ function SkillSection(props: {
         <p className="text-muted-foreground text-xs">{props.caption}</p>
       </div>
       <ul className="grid gap-2">
-        {props.skills.map((skill) => (
+        {visible.map((skill) => (
           <li
             key={skill.id}
             className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3"
@@ -239,6 +259,34 @@ function SkillSection(props: {
           </li>
         ))}
       </ul>
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between px-1 text-muted-foreground text-xs">
+          <span>
+            {start + 1}–{Math.min(start + PAGE_SIZE, props.skills.length)} of {props.skills.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+              size="sm"
+              variant="outline"
+            >
+              Prev
+            </Button>
+            <span>
+              {safePage + 1} / {pageCount}
+            </span>
+            <Button
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage(safePage + 1)}
+              size="sm"
+              variant="outline"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

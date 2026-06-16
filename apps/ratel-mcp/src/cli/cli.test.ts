@@ -29,6 +29,9 @@ describe("runCli — serve", () => {
     const { shutdown } = await runCli(["serve", "/fake/config.json"], {
       readConfig: async () => ({
         mcpServers: { up: { type: "stdio", command: "noop" } },
+        // Isolate from the machine's real ~/.ratel/skills so get_skill_content
+        // isn't conditionally exposed based on whatever skills are activated.
+        skills: { dirs: ["/nonexistent-ratel-cli-test-skills"] },
       }),
       transportFactory: () => upstream.clientTransport,
       serverTransport: downstreamServerTransport,
@@ -118,6 +121,9 @@ describe("runCli — serve", () => {
     const { shutdown } = await runCli(["serve", "/x"], {
       readConfig: async () => ({
         mcpServers: { up: { type: "stdio", command: "noop" } },
+        // Isolate from the machine's real ~/.ratel/skills so get_skill_content
+        // isn't conditionally exposed based on whatever skills are activated.
+        skills: { dirs: ["/nonexistent-ratel-cli-test-skills"] },
       }),
       transportFactory: () => upstream.clientTransport,
       serverTransport,
