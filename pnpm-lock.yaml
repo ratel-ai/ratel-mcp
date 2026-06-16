@@ -39,8 +39,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@ratel-ai/sdk':
-        specifier: ^0.1.5
-        version: 0.1.5(zod@4.4.3)
+        specifier: ^0.2.0
+        version: 0.2.0(zod@4.4.3)
       proper-lockfile:
         specifier: ^4.1.2
         version: 4.1.2
@@ -61,8 +61,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@ratel-ai/sdk':
-        specifier: ^0.1.5
-        version: 0.1.5(zod@4.4.3)
+        specifier: ^0.2.0
+        version: 0.2.0(zod@4.4.3)
       proper-lockfile:
         specifier: ^4.1.2
         version: 4.1.2
@@ -1085,40 +1085,40 @@ packages:
       '@types/react':
         optional: true
 
-  '@ratel-ai/sdk-darwin-arm64@0.1.5':
-    resolution: {integrity: sha512-i5iCTDOIcMOvVm5IbNbrl5yPq79B6bOvIRWiGpLIeGh/nUa9kf4GkwHlCVyv9TWJBO7ovS3vpyxbJUV5lk2KsA==}
+  '@ratel-ai/sdk-darwin-arm64@0.2.0':
+    resolution: {integrity: sha512-RIXMLc46GlJqCBgoifVPEw8+NPPtj8VzIDG12n0EW96OOmdKQzzXRAfYr5qZ+sdY3T1zD8FmH0EFYszc1Fu4Yw==}
     engines: {node: '>=20.0.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@ratel-ai/sdk-darwin-x64@0.1.5':
-    resolution: {integrity: sha512-Yvi9dgTWOd7aSVNJBTPdduIhZGuPouTEFs8e2E0I1p87Vg2Fpu7WlxdxEHY0Uo5BCGBJKlgaJfEPIS+QyvNQXA==}
+  '@ratel-ai/sdk-darwin-x64@0.2.0':
+    resolution: {integrity: sha512-xguey9AT8TmH++gK0Ol4ryghlZtKBb4GhbW+mJHHHZLTThMXbT63dcgxA3jYZnwZ5CadY7UZsXzh+0iowbE5Yg==}
     engines: {node: '>=20.0.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@ratel-ai/sdk-linux-arm64-gnu@0.1.5':
-    resolution: {integrity: sha512-rqK2TLxX2sfVdtitYBeSFAoWldE5M8E4eA4E5Bfhi0ro3KrcOVipnLJS3Q3lYoWZuKBNVOvWa2tsnvjb7xAQsg==}
+  '@ratel-ai/sdk-linux-arm64-gnu@0.2.0':
+    resolution: {integrity: sha512-k2U815Xn/s9ShA9OyaeQl67XBCQz4Tp3HDinuKfW8Xp4mNex0I2ObkZhbYwEzPcdKjBuCxvnBORQQHiYzAvkQg==}
     engines: {node: '>=20.0.0'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@ratel-ai/sdk-linux-x64-gnu@0.1.5':
-    resolution: {integrity: sha512-Ygf+Eyn2/gvjyzjTxxFLcLjFJSTUy3ySqJ5OxOv5ysxBD4d9D2TpNIZc6eE62RM75Cu817igIKOyxxlK1TlQ3g==}
+  '@ratel-ai/sdk-linux-x64-gnu@0.2.0':
+    resolution: {integrity: sha512-W6oaCK1a9mcCJjTZkqH8drbSqhKdGOyHsRsz36Bs7RMmWzfWfWKr5nQlv2ym/tT/clGXwReQb9FYOH+VBbm/xw==}
     engines: {node: '>=20.0.0'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@ratel-ai/sdk-win32-x64-msvc@0.1.5':
-    resolution: {integrity: sha512-m9QVOL7XaU7mkmL1pK1m08jbuv4aa6BPOnYqSbTOAVYmzDdl1n7/sK91Pqyxqkey7wsV6W8LB+FExxd3+SjF/A==}
+  '@ratel-ai/sdk-win32-x64-msvc@0.2.0':
+    resolution: {integrity: sha512-Uz5jtKNC7t2ki9ThwatNZS+tzi6XPbOrhNcUUj7Hp3Ttw3lZn9LzpoEbhodL3Dl5g2ntIXP01Viyh++rJSZzTg==}
     engines: {node: '>=20.0.0'}
     cpu: [x64]
     os: [win32]
 
-  '@ratel-ai/sdk@0.1.5':
-    resolution: {integrity: sha512-Zj7ZMbbZOxwhTERZ1fdRaiP0A1oXuSJiLIiBg6XcKo2VeGIx+db3DowJWR+7ouwonszCWoWxBox7RA5WWgdBQA==}
+  '@ratel-ai/sdk@0.2.0':
+    resolution: {integrity: sha512-U357euk4lQUUXooHWcGYUCNGmHDFo6myJWrM8sy1YtZaQWGSN7TMFwMn1TfNL6dIUTv0TqShcx6fw7RPXdx3kw==}
     engines: {node: '>=20.0.0'}
 
   '@reduxjs/toolkit@2.12.0':
@@ -1584,6 +1584,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/json-schema@7.0.15':
+    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
@@ -4295,30 +4298,31 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.15
 
-  '@ratel-ai/sdk-darwin-arm64@0.1.5':
+  '@ratel-ai/sdk-darwin-arm64@0.2.0':
     optional: true
 
-  '@ratel-ai/sdk-darwin-x64@0.1.5':
+  '@ratel-ai/sdk-darwin-x64@0.2.0':
     optional: true
 
-  '@ratel-ai/sdk-linux-arm64-gnu@0.1.5':
+  '@ratel-ai/sdk-linux-arm64-gnu@0.2.0':
     optional: true
 
-  '@ratel-ai/sdk-linux-x64-gnu@0.1.5':
+  '@ratel-ai/sdk-linux-x64-gnu@0.2.0':
     optional: true
 
-  '@ratel-ai/sdk-win32-x64-msvc@0.1.5':
+  '@ratel-ai/sdk-win32-x64-msvc@0.2.0':
     optional: true
 
-  '@ratel-ai/sdk@0.1.5(zod@4.4.3)':
+  '@ratel-ai/sdk@0.2.0(zod@4.4.3)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
+      '@types/json-schema': 7.0.15
     optionalDependencies:
-      '@ratel-ai/sdk-darwin-arm64': 0.1.5
-      '@ratel-ai/sdk-darwin-x64': 0.1.5
-      '@ratel-ai/sdk-linux-arm64-gnu': 0.1.5
-      '@ratel-ai/sdk-linux-x64-gnu': 0.1.5
-      '@ratel-ai/sdk-win32-x64-msvc': 0.1.5
+      '@ratel-ai/sdk-darwin-arm64': 0.2.0
+      '@ratel-ai/sdk-darwin-x64': 0.2.0
+      '@ratel-ai/sdk-linux-arm64-gnu': 0.2.0
+      '@ratel-ai/sdk-linux-x64-gnu': 0.2.0
+      '@ratel-ai/sdk-win32-x64-msvc': 0.2.0
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
@@ -4648,6 +4652,8 @@ snapshots:
   '@types/estree@1.0.8': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/json-schema@7.0.15': {}
 
   '@types/node@24.12.4':
     dependencies:

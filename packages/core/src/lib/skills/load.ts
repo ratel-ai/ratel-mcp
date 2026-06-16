@@ -74,9 +74,11 @@ export async function loadSkills(
           id: parsed.name,
           name: parsed.name,
           description: parsed.description,
-          tags: parsed.tags,
-          triggers: parsed.triggers,
-          stacks: parsed.stacks,
+          // SDK 0.2.0 collapsed the skill model (ratel ADR-0012): `triggers` fold
+          // into `tags` (both indexed phrases), `stacks` move under non-indexed
+          // `metadata` carried for the push-path ranker.
+          tags: [...parsed.tags, ...parsed.triggers],
+          metadata: { stacks: parsed.stacks },
           body,
         });
       } catch (err) {

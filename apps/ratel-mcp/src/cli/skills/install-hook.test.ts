@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
 import type { BackupFs, HierarchyEnv, JsonFs } from "@ratel-ai/mcp-core";
+import { describe, expect, it } from "vitest";
 import {
   addPreloadHook,
   installHook,

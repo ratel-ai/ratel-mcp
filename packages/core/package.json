@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@ratel-ai/sdk": "^0.1.5",
+    "@ratel-ai/sdk": "^0.2.0",
     "proper-lockfile": "^4.1.2",
     "smol-toml": "^1.6.1"
   }

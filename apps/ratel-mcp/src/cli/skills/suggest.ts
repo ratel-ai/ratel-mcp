@@ -47,9 +47,9 @@ export interface SuggestDeps {
 /**
  * Rank skills for a prompt with the push-path methodology:
  *
- *  1. Rank by the **prompt** (lexical BM25) against name + description + tags +
- *     **triggers** — author-declared task phrases that bridge a terse intent
- *     prompt to the skill. Project signals are *not* folded into the query.
+ *  1. Rank by the **prompt** (lexical BM25) against name + description + tags
+ *     (author **triggers** fold into tags on load: task phrases that bridge a
+ *     terse intent prompt to the skill). Project signals are *not* folded into the query.
  *  2. The detected project **stack** is a tie-breaker, not an override: a clearly
  *     stronger lexical match always wins; the stack only decides among lexical
  *     near-ties. Context narrows; intent picks.
@@ -87,7 +87,7 @@ export async function suggestSkills(
   const scored: Scored[] = raw
     .map((hit) => {
       const skill = catalog.get(hit.skillId);
-      const stackMatch = (skill?.stacks ?? []).some((s) => signals.has(s.toLowerCase()));
+      const stackMatch = (skill?.metadata?.stacks ?? []).some((s) => signals.has(s.toLowerCase()));
       return {
         skillId: hit.skillId,
         description: skill?.description ?? "",

@@ -15,7 +15,9 @@ import { suggestSkills } from "./suggest.js";
  */
 
 function skill(id: string, description: string, triggers: string[], stacks: string[]): Skill {
-  return { id, name: id, description, tags: [], triggers, stacks, body: `# ${id}` };
+  // SDK 0.2.0 (ratel ADR-0012): triggers fold into the indexed `tags`; stacks
+  // move under non-indexed `metadata`.
+  return { id, name: id, description, tags: triggers, metadata: { stacks }, body: `# ${id}` };
 }
 
 const SKILLS: Skill[] = [

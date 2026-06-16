@@ -11,9 +11,10 @@ function skill(
     id,
     name: id,
     description,
-    tags: opts.tags ?? [],
-    triggers: opts.triggers ?? [],
-    stacks: opts.stacks ?? [],
+    // SDK 0.2.0 (ratel ADR-0012): triggers fold into the indexed `tags`; stacks
+    // move under non-indexed `metadata`.
+    tags: [...(opts.tags ?? []), ...(opts.triggers ?? [])],
+    metadata: { stacks: opts.stacks ?? [] },
     body: `# ${id}`,
   };
 }
