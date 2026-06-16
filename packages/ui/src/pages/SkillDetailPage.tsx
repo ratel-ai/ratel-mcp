@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRatelApp } from "@/App";
+import { Markdown } from "@/components/markdown";
 import {
   PageHeader,
   PageHeaderActions,
@@ -192,9 +193,13 @@ export function SkillDetailPage(props: { id: string }) {
               ))}
             </div>
           )}
-          <pre className="overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-4 font-mono text-xs">
-            {detail.body || "(no instructions)"}
-          </pre>
+          {detail.body.trim() ? (
+            <div className="rounded-md border border-border bg-card p-4">
+              <Markdown>{detail.body}</Markdown>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">(no instructions)</p>
+          )}
           {canEdit ? (
             <div className="sm:hidden">
               <Button onClick={startEdit} size="sm" type="button" variant="outline">
