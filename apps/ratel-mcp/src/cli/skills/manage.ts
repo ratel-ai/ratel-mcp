@@ -52,6 +52,9 @@ export interface ManageOptions {
   dryRun?: boolean;
   /** Restrict the operation to these skill ids. Omit to operate on all. */
   ids?: string[];
+  /** Activate only from this agent's folder — disambiguates a name that exists
+   *  in both Claude and Codex. Omit to scan both (Claude first). */
+  source?: SkillSource;
   /** Injectable clock for deterministic tests. */
   now?: () => Date;
 }
@@ -97,6 +100,7 @@ export async function activateSkills(
   // in case the throw was the manifest write itself.
   try {
     for (const { dir, source } of sources) {
+      if (options.source && options.source !== source) continue;
       for (const id of await skillDirNames(dir)) {
         if (options.ids && !options.ids.includes(id)) continue;
         const from = join(dir, id);

@@ -898,6 +898,15 @@ describe("UI server — skill sources (Claude / Codex / Ratel)", () => {
     expect(sourceOf("from-codex")).toBe("codex");
   });
 
+  it("lists a name present in both agents once per agent (Codex isn't hidden by Claude)", async () => {
+    await writeSkill(".claude/skills", "in-both");
+    await writeSkill(".codex/skills", "in-both");
+    const res = await fetch(url("/api/skills"), { headers: headers() });
+    const body = (await res.json()) as { available: Array<{ id: string; source: string }> };
+    const both = body.available.filter((s) => s.id === "in-both");
+    expect(both.map((s) => s.source).sort()).toEqual(["claude", "codex"]);
+  });
+
   it("reports source=codex on GET and rejects editing a Codex skill with 409", async () => {
     const detail = await fetch(url("/api/skills/from-codex"), { headers: headers() });
     expect(detail.status).toBe(200);

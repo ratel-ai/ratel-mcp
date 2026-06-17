@@ -99,17 +99,16 @@ export async function getSkills(ctx: HandlerCtx): Promise<ApiResponse> {
     (await listManaged(paths)).map((m) => [m.id, (m.source ?? "claude") as SkillOrigin]),
   );
 
-  // Available = unmanaged Claude + Codex skills, deduped (managed wins; a name in
-  // both agents is listed once, Claude first).
+  // Available = every unmanaged skill from each agent. A name that lives in both
+  // Claude and Codex appears once per agent (each independently manageable, told
+  // apart by `source`); a name already managed is excluded (it lives in Ratel).
   const available: Array<ReturnType<typeof skillSummary> & { source: SkillSource }> = [];
-  const seen = new Set(managedIds);
   for (const [skills, source] of [
     [claude, "claude"],
     [codex, "codex"],
   ] as const) {
     for (const s of skills) {
-      if (seen.has(s.id)) continue;
-      seen.add(s.id);
+      if (managedIds.has(s.id)) continue;
       available.push({ ...skillSummary(s), source });
     }
   }
@@ -222,14 +221,17 @@ export async function getSkill(ctx: HandlerCtx, id: string): Promise<ApiResponse
   });
 }
 
-/** Move skills into the Ratel-managed folder. `ids` omitted = activate all. */
+/** Move skills into the Ratel-managed folder. `ids` omitted = activate all;
+ *  `source` ("claude"|"codex") disambiguates a name present in both agents. */
 export async function activateSkillsRoute(
   ctx: HandlerCtx,
-  body: { ids?: unknown },
+  body: { ids?: unknown; source?: unknown },
 ): Promise<ApiResponse> {
   const ids = optionalStringArray(body.ids, "ids");
+  const source = body.source === "claude" || body.source === "codex" ? body.source : undefined;
   const result = await activateSkills(defaultSkillManagePaths(ctx.env.homeDir), {
     ids,
+    source,
     logger: ctx.log,
   });
   return ok({ moved: result.moved.map((m) => m.id), skipped: result.skipped });

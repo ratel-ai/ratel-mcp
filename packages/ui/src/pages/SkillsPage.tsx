@@ -84,11 +84,11 @@ export function SkillsPage() {
   }, [load]);
 
   const mutate = useCallback(
-    async (label: string, path: string, ids?: string[]) => {
+    async (label: string, path: string, body?: Record<string, unknown>) => {
       // Discard the response body so runAction's toast shows just `label`, not the
       // operation's per-skill log lines (which are noise for a human).
       const okResult = await runAction(label, () =>
-        request(path, { method: "POST", body: ids ? { ids } : {} }).then(() => undefined),
+        request(path, { method: "POST", body: body ?? {} }).then(() => undefined),
       );
       if (okResult) await load();
     },
@@ -230,9 +230,9 @@ export function SkillsPage() {
               <Button
                 disabled={busy}
                 onClick={() =>
-                  void mutate(`Stopped managing ${skill.name}`, "/api/skills/deactivate", [
-                    skill.id,
-                  ])
+                  void mutate(`Stopped managing ${skill.name}`, "/api/skills/deactivate", {
+                    ids: [skill.id],
+                  })
                 }
                 size="sm"
                 variant="outline"
@@ -254,7 +254,10 @@ export function SkillsPage() {
             <Button
               disabled={busy}
               onClick={() =>
-                void mutate(`Now managing ${skill.name}`, "/api/skills/activate", [skill.id])
+                void mutate(`Now managing ${skill.name}`, "/api/skills/activate", {
+                  ids: [skill.id],
+                  source: skill.source,
+                })
               }
               size="sm"
             >
@@ -296,7 +299,7 @@ function SkillSection(props: {
       <ul className="grid gap-2">
         {visible.map((skill) => (
           <li
-            key={skill.id}
+            key={`${skill.source}:${skill.id}`}
             className="flex items-center gap-3 rounded-md border border-border bg-card p-3"
           >
             <SourceIcon source={props.iconSource ?? skill.source} />

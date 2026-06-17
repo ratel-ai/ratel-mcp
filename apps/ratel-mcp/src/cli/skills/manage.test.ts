@@ -129,6 +129,17 @@ describe("activateSkills", () => {
     // the Codex copy is left untouched
     expect(await exists(join(paths.codexDir, "shared", "SKILL.md"))).toBe(true);
   });
+
+  it("with source=codex activates the Codex copy of a shared name, leaving Claude's", async () => {
+    await writeNativeSkill("shared");
+    await writeCodexSkill("shared");
+    const result = await activateSkills(paths, { ids: ["shared"], source: "codex" });
+    expect(result.moved.map((m) => m.id)).toEqual(["shared"]);
+    expect((await listManaged(paths)).find((m) => m.id === "shared")?.source).toBe("codex");
+    // Codex copy moved out; Claude copy stays put.
+    expect(await exists(join(paths.codexDir, "shared", "SKILL.md"))).toBe(false);
+    expect(await exists(join(paths.nativeDir, "shared", "SKILL.md"))).toBe(true);
+  });
 });
 
 describe("deactivateSkills", () => {
