@@ -20,7 +20,7 @@
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
-  "hooks": "./hooks.json",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Ratel MCP",
     "shortDescription": "Expose upstream MCP servers through a searchable Ratel gateway",
@@ -37,6 +37,7 @@
     "defaultPrompt": [
       "Use Ratel MCP to find the right tool for this task",
       "Import my Codex MCP servers into Ratel",
+      "Review my Ratel tool usage and suggest improvements",
       "Open the Ratel UI"
     ],
     "composerIcon": "./assets/icon.svg",
