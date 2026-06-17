@@ -1,6 +1,6 @@
 # `examples/claude-with-ratel/`
 
-Run a Claude Code session where the **only** MCP server is `ratel-mcp`, and `ratel-mcp` itself fronts one or more upstream MCPs behind its `search_tools` + `invoke_tool` gateway. The session sees two tools instead of N — even though everything in the upstream catalogs remains reachable through `ratel-mcp`.
+Run a Claude Code session where the **only** MCP server is `ratel-mcp`, and `ratel-mcp` itself fronts one or more upstream MCPs behind its `search_capabilities` + `invoke_tool` gateway. The session sees two tools instead of N — even though everything in the upstream catalogs remains reachable through `ratel-mcp`.
 
 This is the headline demo: drop-in replacement for a multi-MCP setup.
 
@@ -42,16 +42,16 @@ That:
 Inside the Claude Code session:
 
 - `/mcp` lists exactly one connected server (`ratel-mcp`) with two tools.
-- The tool list shows `mcp__ratel-mcp__search_tools` and `mcp__ratel-mcp__invoke_tool` — and nothing else.
-- Asking Claude to do anything tool-shaped triggers a `search_tools` call (to find the right upstream tool by id) followed by an `invoke_tool` call (to run it).
+- The tool list shows `mcp__ratel-mcp__search_capabilities` and `mcp__ratel-mcp__invoke_tool` — and nothing else.
+- Asking Claude to do anything tool-shaped triggers a `search_capabilities` call (to find the right upstream tool by id) followed by an `invoke_tool` call (to run it).
 
 Try these to verify it's working end-to-end:
 
 | Prompt | What confirms success |
 |---|---|
-| `Echo the message "hello from ratel" using a tool.` | `search_tools` returns `ev__echo`; `invoke_tool` returns `Echo: hello from ratel` |
-| `Add 47 and 53 using one of your tools.` | `search_tools` ranks `ev__add` first; `invoke_tool` returns `100` |
-| `List what tools are available behind your search_tools gateway.` | Claude calls `search_tools` with broad queries and reports ~10 `ev__*` entries |
+| `Echo the message "hello from ratel" using a tool.` | `search_capabilities` returns `ev__echo`; `invoke_tool` returns `Echo: hello from ratel` |
+| `Add 47 and 53 using one of your tools.` | `search_capabilities` ranks `ev__add` first; `invoke_tool` returns `100` |
+| `List what tools are available behind your search_capabilities gateway.` | Claude calls `search_capabilities` with broad queries and reports ~10 `ev__*` entries |
 | `Invoke a tool called "delete_universe" through your gateway.` | `invoke_tool` returns `{ error: "unknown toolId: delete_universe..." }` and Claude reports there's no such tool |
 
 Critical signal: every tool call you see in the UI is `mcp__ratel-mcp__*`. If you ever see `mcp__ev__*` directly, something is bypassing the gateway.

@@ -4,6 +4,18 @@ All notable changes to this package are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- **Skills, served through the gateway.** When a skill catalog is configured, `createMcpServer` / `buildGatewayFromConfig` expose `get_skill_content` alongside `search_capabilities` + `invoke_tool`, and `search_capabilities` returns a `skills` bucket beside `tools`.
+- `ratel-mcp skill` CLI: `activate` / `deactivate` move skills between `~/.claude/skills` and the Ratel-managed `~/.ratel/skills` so the gateway serves them; `list` shows managed skills; `suggest` ranks skills for a prompt.
+- Prompt-aware preload hook: `skill preload-hook` is a Claude Code `UserPromptSubmit` entrypoint that ranks skills against the prompt (lexical match, project-stack tie-break, clear-winner gate) and nudges the agent toward the best skill; `skill install-hook` / `uninstall-hook` register it in `settings.json` (`--scope user|project`).
+- Skills in the browser UI (`ratel-mcp ui`): the Skills page lists both the served (managed) skills and the available Claude Code skills (`~/.claude/skills`), with per-skill Activate/Deactivate, an Activate-all action, and a "New skill" form that creates a skill from scratch. Replaces the "coming soon" placeholder. Backed by `GET /api/skills` and `POST /api/skills` (create) / `/api/skills/{activate,deactivate}`.
+
+### Changed
+- Consume `@ratel-ai/sdk@^0.2.0`: the new discovery tool is `search_capabilities` (returns a `tools` and a `skills` bucket), and the skill model folds author `triggers` into the indexed `tags` and `stacks` into non-indexed `metadata` (ratel ADR-0012).
+
+### Backward compatibility
+- The gateway still advertises the deprecated `search_tools` (its pre-0.2.0 tools-only `{ groups }` result) alongside `search_capabilities`, so MCP clients that reference `search_tools` by name keep working unchanged. Its description flags it as deprecated; prefer `search_capabilities`.
+
 ## [0.3.0-rc.0] - 2026-06-10
 
 ### Added

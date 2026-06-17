@@ -406,14 +406,6 @@ function ProductSidebar(props: {
                 icon={<Sparkles />}
                 label="Skills"
                 onClick={() => props.onNavigate("/skills")}
-                suffix={
-                  <Badge
-                    className="ml-auto h-5 px-1.5 text-[10px] transition-[opacity,filter,transform] duration-200 ease-out group-data-[collapsible=icon]:translate-x-1 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:blur-[2px]"
-                    variant="outline"
-                  >
-                    Soon
-                  </Badge>
-                }
               />
             </SidebarMenu>
           </SidebarGroupContent>
@@ -578,9 +570,6 @@ function CommandMenu(props: {
               <CommandItem onSelect={() => props.onNavigate("/skills")}>
                 <Sparkles />
                 Skills
-                <Badge className="ml-auto" variant="outline">
-                  Soon
-                </Badge>
               </CommandItem>
             </CommandGroup>
             {agentItems.length > 0 && (
@@ -760,6 +749,11 @@ export function authBadgeVariant(status?: AuthStatus) {
 
 export function toolSourcePath(scope: RatelScope, name: string, token?: string) {
   const path = `/tools/${encodeURIComponent(scope)}/${encodeURIComponent(name)}`;
+  return token ? `${path}?t=${encodeURIComponent(token)}` : path;
+}
+
+export function skillPath(id: string, token?: string) {
+  const path = `/skills/${encodeURIComponent(id)}`;
   return token ? `${path}?t=${encodeURIComponent(token)}` : path;
 }
 

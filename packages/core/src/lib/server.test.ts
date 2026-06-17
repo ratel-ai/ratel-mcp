@@ -6,7 +6,16 @@ import {
   ListToolsRequestSchema,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { INVOKE_TOOL_ID, registerMcpServer, SEARCH_TOOLS_ID, ToolCatalog } from "@ratel-ai/sdk";
+import {
+  GET_SKILL_CONTENT_ID,
+  INVOKE_TOOL_ID,
+  registerMcpServer,
+  SEARCH_CAPABILITIES_ID,
+  SEARCH_TOOLS_ID,
+  type Skill,
+  SkillCatalog,
+  ToolCatalog,
+} from "@ratel-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { createMcpServer } from "./server.js";
 import { AUTH_TOOL_ID } from "./tools/auth.js";
@@ -114,14 +123,14 @@ describe("createMcpServer", () => {
 
     const instructions = client.getInstructions();
     expect(instructions).toBeDefined();
-    expect(instructions).toMatch(/search_tools/);
+    expect(instructions).toMatch(/search_capabilities/);
     expect(instructions?.toLowerCase()).toMatch(/before/);
 
     await client.close();
     await handle.close();
   });
 
-  it("forwards upstreamServers into the listed search_tools description", async () => {
+  it("forwards upstreamServers into the listed search_capabilities description", async () => {
     const catalog = new ToolCatalog();
 
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
@@ -138,7 +147,7 @@ describe("createMcpServer", () => {
     await client.connect(clientTransport);
 
     const { tools } = await client.listTools();
-    const searchTool = tools.find((t) => t.name === SEARCH_TOOLS_ID);
+    const searchTool = tools.find((t) => t.name === SEARCH_CAPABILITIES_ID);
     expect(searchTool?.description).toContain("upstream MCP servers");
     expect(searchTool?.description).toContain("- ev — everything server (13 tools)");
     expect(searchTool?.description).toMatch(/- bare\b/);
@@ -147,19 +156,60 @@ describe("createMcpServer", () => {
     await handle.close();
   });
 
-  it("exposes exactly search_tools and invoke_tool via tools/list", async () => {
+  it("exposes search_capabilities, invoke_tool, and the deprecated search_tools alias via tools/list", async () => {
     const catalog = new ToolCatalog();
     catalog.register(localTool("echo", "Echo a message back to the caller.", (a) => a));
 
     const { client, handle } = await buildClientAgainst(catalog);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual([SEARCH_TOOLS_ID, INVOKE_TOOL_ID].sort());
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      [SEARCH_CAPABILITIES_ID, SEARCH_TOOLS_ID, INVOKE_TOOL_ID].sort(),
+    );
+    // The compat alias is advertised but flagged so new clients prefer search_capabilities.
+    const legacy = tools.find((t) => t.name === SEARCH_TOOLS_ID);
+    expect(legacy?.description).toContain("Deprecated");
 
     await client.close();
     await handle.close();
   });
 
-  it("search_tools roundtrips BM25 hits grouped by upstream MCP", async () => {
+  it("search_tools (deprecated) still returns the pre-0.2.0 tools-only {groups} shape", async () => {
+    const catalog = new ToolCatalog();
+    catalog.register(
+      localTool("wx__weather", "Get the current weather forecast for a city.", () => ({})),
+    );
+
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const handle = await createMcpServer(catalog, {
+      name: "ratel-test",
+      version: "0.0.0",
+      transport: serverTransport,
+      upstreamServers: [{ name: "wx", toolCount: 1 }],
+    });
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    const result = await client.callTool({
+      name: SEARCH_TOOLS_ID,
+      arguments: { query: "weather forecast" },
+    });
+
+    // Old shape: a top-level `groups` array, NOT the two-bucket { tools, skills }.
+    const structured = result.structuredContent as {
+      groups: Array<{ server: { name: string }; hits: Array<{ toolId: string }> }>;
+      tools?: unknown;
+      skills?: unknown;
+    };
+    expect(structured.groups[0].server.name).toBe("wx");
+    expect(structured.groups[0].hits[0].toolId).toBe("wx__weather");
+    expect(structured.tools).toBeUndefined();
+    expect(structured.skills).toBeUndefined();
+
+    await client.close();
+    await handle.close();
+  });
+
+  it("search_capabilities roundtrips BM25 hits grouped by upstream MCP", async () => {
     const catalog = new ToolCatalog();
     catalog.register(
       localTool("wx__weather", "Get the current weather forecast for a city.", () => ({})),
@@ -180,32 +230,34 @@ describe("createMcpServer", () => {
     await client.connect(clientTransport);
 
     const result = await client.callTool({
-      name: SEARCH_TOOLS_ID,
+      name: SEARCH_CAPABILITIES_ID,
       arguments: { query: "weather forecast" },
     });
 
     const structured = result.structuredContent as {
-      groups: Array<{
-        server: { name: string; description?: string; instructions?: string };
-        hits: Array<{ toolId: string }>;
-      }>;
+      tools: {
+        groups: Array<{
+          server: { name: string; description?: string; instructions?: string };
+          hits: Array<{ toolId: string }>;
+        }>;
+      };
     };
-    expect(structured.groups[0].server.name).toBe("wx");
-    expect(structured.groups[0].server.description).toBe("Weather server");
-    expect(structured.groups[0].hits[0].toolId).toBe("wx__weather");
+    expect(structured.tools.groups[0].server.name).toBe("wx");
+    expect(structured.tools.groups[0].server.description).toBe("Weather server");
+    expect(structured.tools.groups[0].hits[0].toolId).toBe("wx__weather");
 
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0].type).toBe("text");
     const parsed = JSON.parse(content[0].text) as {
-      groups: Array<{ server: { name: string }; hits: Array<{ toolId: string }> }>;
+      tools: { groups: Array<{ server: { name: string }; hits: Array<{ toolId: string }> }> };
     };
-    expect(parsed.groups[0].hits[0].toolId).toBe("wx__weather");
+    expect(parsed.tools.groups[0].hits[0].toolId).toBe("wx__weather");
 
     await client.close();
     await handle.close();
   });
 
-  it("search_tools surfaces the upstream's official `instructions` on each group, separately from any user description", async () => {
+  it("search_capabilities surfaces the upstream's official `instructions` on each group, separately from any user description", async () => {
     const catalog = new ToolCatalog();
     catalog.register(
       localTool("wx__weather", "Get the current weather forecast for a city.", () => ({})),
@@ -229,16 +281,18 @@ describe("createMcpServer", () => {
     await client.connect(clientTransport);
 
     const result = await client.callTool({
-      name: SEARCH_TOOLS_ID,
+      name: SEARCH_CAPABILITIES_ID,
       arguments: { query: "weather forecast" },
     });
     const structured = result.structuredContent as {
-      groups: Array<{
-        server: { name: string; description?: string; instructions?: string };
-      }>;
+      tools: {
+        groups: Array<{
+          server: { name: string; description?: string; instructions?: string };
+        }>;
+      };
     };
-    expect(structured.groups[0].server.description).toBe("Weather server");
-    expect(structured.groups[0].server.instructions).toBe(
+    expect(structured.tools.groups[0].server.description).toBe("Weather server");
+    expect(structured.tools.groups[0].server.instructions).toBe(
       "Use this for weather. Coordinates must be ISO-6709.",
     );
 
@@ -313,7 +367,7 @@ describe("createMcpServer", () => {
     await handle.close();
 
     await expect(
-      client.callTool({ name: SEARCH_TOOLS_ID, arguments: { query: "x" } }),
+      client.callTool({ name: SEARCH_CAPABILITIES_ID, arguments: { query: "x" } }),
     ).rejects.toThrow();
 
     await client.close();
@@ -533,5 +587,134 @@ describe("createMcpServer", () => {
     await handle.close();
     await upstreamHandle.close();
     await upstream.server.close();
+  });
+});
+
+describe("createMcpServer skills", () => {
+  function skillCatalogWith(...skills: Skill[]): SkillCatalog {
+    const catalog = new SkillCatalog();
+    for (const s of skills) catalog.register(s);
+    return catalog;
+  }
+
+  const apiDesign: Skill = {
+    id: "api-design",
+    name: "api-design",
+    description: "REST API design patterns and conventions.",
+    tags: ["backend", "api"],
+    body: "# API Design\n\nUse nouns for resources.",
+  };
+
+  it("registers get_skill_content (4 tools incl. the search_tools alias) when the skill catalog is non-empty", async () => {
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const handle = await createMcpServer(new ToolCatalog(), {
+      name: "ratel-test",
+      version: "0.0.0",
+      transport: serverTransport,
+      skillCatalog: skillCatalogWith(apiDesign),
+    });
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      [GET_SKILL_CONTENT_ID, INVOKE_TOOL_ID, SEARCH_CAPABILITIES_ID, SEARCH_TOOLS_ID].sort(),
+    );
+
+    await client.close();
+    await handle.close();
+  });
+
+  it("omits get_skill_content when the skill catalog is empty (3 tools incl. the search_tools alias)", async () => {
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const handle = await createMcpServer(new ToolCatalog(), {
+      name: "ratel-test",
+      version: "0.0.0",
+      transport: serverTransport,
+      skillCatalog: skillCatalogWith(),
+    });
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      [SEARCH_CAPABILITIES_ID, INVOKE_TOOL_ID, SEARCH_TOOLS_ID].sort(),
+    );
+
+    await client.close();
+    await handle.close();
+  });
+
+  it("search_capabilities returns a skills bucket alongside the tools bucket", async () => {
+    const toolCatalog = new ToolCatalog();
+    toolCatalog.register({
+      id: "vercel__deploy",
+      name: "deploy",
+      description: "Deploy the current project to Vercel.",
+      inputSchema: { type: "object" } as Record<string, unknown>,
+      outputSchema: { type: "object" } as Record<string, unknown>,
+      execute: async () => ({ url: "https://x.vercel.app" }),
+    });
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const handle = await createMcpServer(toolCatalog, {
+      name: "ratel-test",
+      version: "0.0.0",
+      transport: serverTransport,
+      skillCatalog: skillCatalogWith({
+        id: "vercel-deploy",
+        name: "vercel-deploy",
+        description: "How to deploy to Vercel: env vars, preview vs production, rollbacks.",
+        tags: ["vercel", "deployment"],
+        body: "# Vercel Deploy",
+      }),
+    });
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    const found = await client.callTool({
+      name: SEARCH_CAPABILITIES_ID,
+      arguments: { query: "deploy to vercel" },
+    });
+    const out = found.structuredContent as {
+      tools: { groups: Array<{ hits: Array<{ toolId: string }> }> };
+      skills: Array<{ skillId: string }>;
+    };
+    expect(out.tools.groups[0].hits[0].toolId).toBe("vercel__deploy");
+    expect(out.skills[0]?.skillId).toBe("vercel-deploy");
+
+    await client.close();
+    await handle.close();
+  });
+
+  it("get_skill_content loads the body; instructions mention get_skill_content", async () => {
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const handle = await createMcpServer(new ToolCatalog(), {
+      name: "ratel-test",
+      version: "0.0.0",
+      transport: serverTransport,
+      skillCatalog: skillCatalogWith(apiDesign),
+    });
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    await client.connect(clientTransport);
+
+    expect(client.getInstructions()).toMatch(/get_skill_content/);
+
+    const found = await client.callTool({
+      name: SEARCH_CAPABILITIES_ID,
+      arguments: { query: "design a REST API" },
+    });
+    const skills = (found.structuredContent as { skills: Array<{ skillId: string }> }).skills;
+    expect(skills[0]?.skillId).toBe("api-design");
+
+    const loaded = await client.callTool({
+      name: GET_SKILL_CONTENT_ID,
+      arguments: { skillId: "api-design" },
+    });
+    expect((loaded.structuredContent as { body: string }).body).toContain(
+      "Use nouns for resources",
+    );
+
+    await client.close();
+    await handle.close();
   });
 });

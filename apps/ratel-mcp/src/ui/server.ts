@@ -12,20 +12,26 @@ import { fileURLToPath } from "node:url";
 import type { HandlerCtx } from "../cli/handlers/types.js";
 import {
   type ApiResponse,
+  activateSkillsRoute,
   addServer,
   applyImportAgent,
   applyImportRatel,
   applyLink,
   authServer,
+  createSkillRoute,
+  deactivateSkillsRoute,
   doImport,
   doLink,
   editServer,
   getAgentHosts,
   getConfig,
+  getSkill,
+  getSkills,
   openFile,
   previewImport,
   previewLink,
   removeServer,
+  updateSkillRoute,
 } from "./routes.js";
 import {
   constantTimeEqual,
@@ -130,6 +136,32 @@ async function route(
   }
   if (method === "GET" && path === "/api/agent-hosts") {
     return getAgentHosts(ctx);
+  }
+  if (method === "GET" && path === "/api/skills") {
+    return getSkills(ctx);
+  }
+  if (method === "POST" && path === "/api/skills") {
+    const body = await readJsonBody(req);
+    return createSkillRoute(ctx, body);
+  }
+  if (method === "POST" && path === "/api/skills/activate") {
+    const body = await readJsonBody(req);
+    return activateSkillsRoute(ctx, body);
+  }
+  if (method === "POST" && path === "/api/skills/deactivate") {
+    const body = await readJsonBody(req);
+    return deactivateSkillsRoute(ctx, body);
+  }
+  const skillMatch = /^\/api\/skills\/([^/]+)$/.exec(path);
+  if (skillMatch) {
+    const id = decodeURIComponent(skillMatch[1]);
+    if (method === "GET") {
+      return getSkill(ctx, id);
+    }
+    if (method === "PATCH") {
+      const body = await readJsonBody(req);
+      return updateSkillRoute(ctx, id, body);
+    }
   }
   if (method === "POST" && path === "/api/open-file") {
     const body = await readJsonBody(req);
