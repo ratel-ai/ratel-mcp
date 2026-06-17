@@ -134,6 +134,13 @@ export function SkillDetailPage(props: { id: string }) {
               </Badge>
             )}
           </div>
+          {detail && detail.state === "active" && detail.source !== "ratel" && (
+            <p className="mt-2 flex items-center gap-1.5 text-muted-foreground text-sm">
+              Originally from
+              <SourceIcon className="size-5" source={detail.source} />
+              <span className="font-medium text-foreground">{sourceLabel(detail.source)}</span>
+            </p>
+          )}
           {detail && !isEditing && (
             <PageHeaderDescription className="mt-2">
               {detail.description || "No description stored for this skill."}
