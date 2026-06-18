@@ -8,12 +8,14 @@ import {
   LinkIcon,
   RefreshCw,
   SearchIcon,
+  Sparkles,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useMeasure from "react-use-measure";
 import { type BackupManifest, type JsonRequestInit, type ServerEntry, useRatelApp } from "@/App";
+import { ImportSkillsDialog } from "@/components/import-skills-dialog";
 import {
   PageHeader,
   PageHeaderActions,
@@ -41,6 +43,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  agentKindToSkillSource,
+  availableSkillsForKind,
+  fetchSkills,
+  type SkillSummary,
+} from "@/lib/skills";
 import { cn } from "@/lib/utils";
 
 type AgentHostKind = "claude-code" | "codex";
@@ -177,10 +185,34 @@ const POSTURE_COPY: Record<
 const CODEX_ICON_SRC = new URL("../assets/codex-color.svg", import.meta.url).href;
 const CLAUDE_CODE_ICON_SRC = new URL("../assets/claudecode-color.svg", import.meta.url).href;
 
+/**
+ * Load the unmanaged skills available across agents (those Ratel doesn't manage
+ * yet). Shared by the agent directory (for per-card counts) and the agent detail
+ * page (for the import section). Fail-soft to an empty list so a skills hiccup
+ * never blocks the MCP setup flows.
+ */
+function useAvailableSkills() {
+  const { request } = useRatelApp();
+  const [available, setAvailable] = useState<SkillSummary[]>([]);
+  const reload = useCallback(async () => {
+    try {
+      const data = await fetchSkills(request);
+      setAvailable(data.available);
+    } catch {
+      setAvailable([]);
+    }
+  }, [request]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+  return { available, reload };
+}
+
 export function AgentSetupPage() {
   const { clearSetupIntent, config, openCommandMenu, refresh, request, setupIntent, token } =
     useRatelApp();
   const navigate = useNavigate();
+  const { available } = useAvailableSkills();
   const [hosts, setHosts] = useState<DetectedAgentHostSummary[]>([]);
   const [scanning, setScanning] = useState(false);
   const handledIntent = useRef<number | null>(null);
@@ -281,7 +313,12 @@ export function AgentSetupPage() {
       <section className="grid gap-3">
         <div className="grid gap-3 xl:grid-cols-2">
           {hosts.map((host) => (
-            <AgentDirectoryCard host={host} key={host.kind} onOpen={() => openAgent(host.kind)} />
+            <AgentDirectoryCard
+              host={host}
+              key={host.kind}
+              onOpen={() => openAgent(host.kind)}
+              unmanagedSkillCount={availableSkillsForKind(available, host.kind).length}
+            />
           ))}
         </div>
       </section>
@@ -294,6 +331,8 @@ export function AgentSetupPage() {
 export function AgentDetailPage(props: { kind: AgentHostKind; operation?: SetupFlow }) {
   const { openCommandMenu, refresh, request, token } = useRatelApp();
   const navigate = useNavigate();
+  const { available, reload: reloadSkills } = useAvailableSkills();
+  const agentAvailable = availableSkillsForKind(available, props.kind);
   const [hosts, setHosts] = useState<DetectedAgentHostSummary[]>([]);
   const [scanning, setScanning] = useState(false);
 
@@ -421,13 +460,23 @@ export function AgentDetailPage(props: { kind: AgentHostKind; operation?: SetupF
             </div>
             <DetailLabel>Status</DetailLabel>
             <LinkStatusBadge host={host} />
-            {missingRatelEntryNames(host).length > 0 ? (
+            {missingRatelEntryNames(host).length > 0 || agentAvailable.length > 0 ? (
               <>
                 <DetailLabel>Coverage</DetailLabel>
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  {missingRatelEntryNames(host).length} native tool
-                  {missingRatelEntryNames(host).length === 1 ? "" : "s"} not in Ratel.
-                </p>
+                <div className="grid gap-1">
+                  {missingRatelEntryNames(host).length > 0 ? (
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      {missingRatelEntryNames(host).length} native tool
+                      {missingRatelEntryNames(host).length === 1 ? "" : "s"} not in Ratel.
+                    </p>
+                  ) : null}
+                  {agentAvailable.length > 0 ? (
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      {agentAvailable.length} skill{agentAvailable.length === 1 ? "" : "s"} not
+                      managed by Ratel.
+                    </p>
+                  ) : null}
+                </div>
               </>
             ) : null}
             <DetailLabel>Config</DetailLabel>
@@ -437,9 +486,11 @@ export function AgentDetailPage(props: { kind: AgentHostKind; operation?: SetupF
           </DetailGrid>
 
           <AgentOperationPanel
+            availableSkills={agentAvailable}
             host={host}
             hostKind={host.kind}
             onScanHosts={scanHosts}
+            onSkillsImported={reloadSkills}
             request={request}
           />
         </section>
@@ -487,7 +538,11 @@ function AgentPageSwitcher(props: {
   );
 }
 
-function AgentDirectoryCard(props: { host: DetectedAgentHostSummary; onOpen: () => void }) {
+function AgentDirectoryCard(props: {
+  host: DetectedAgentHostSummary;
+  onOpen: () => void;
+  unmanagedSkillCount: number;
+}) {
   const posture = POSTURE_COPY[props.host.posture];
   const primaryPath =
     props.host.scopes.find((scope) => scope.available)?.path ?? props.host.scopes[0]?.path;
@@ -513,6 +568,12 @@ function AgentDirectoryCard(props: { host: DetectedAgentHostSummary; onOpen: () 
               {missingRatelEntryNames(props.host).length === 1 ? "" : "s"} not in Ratel.
             </p>
           ) : null}
+          {props.unmanagedSkillCount > 0 ? (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
+              {props.unmanagedSkillCount} skill{props.unmanagedSkillCount === 1 ? "" : "s"} not
+              managed by Ratel.
+            </p>
+          ) : null}
           <p className="mt-3 truncate font-mono text-xs text-muted-foreground">
             {primaryPath ?? props.host.detection.reasons[0] ?? "Known paths unavailable"}
           </p>
@@ -523,15 +584,25 @@ function AgentDirectoryCard(props: { host: DetectedAgentHostSummary; onOpen: () 
 }
 
 function AgentOperationPanel(props: {
+  availableSkills: SkillSummary[];
   host: DetectedAgentHostSummary;
   hostKind: AgentHostKind;
   onScanHosts: () => Promise<void>;
+  onSkillsImported: () => void | Promise<void>;
   request: <T>(path: string, init?: JsonRequestInit) => Promise<T>;
 }) {
   const canImport = missingRatelEntryNames(props.host).length > 0;
   const canLink = props.host.posture !== "unavailable" && props.host.ratelEntryCount === 0;
+  const canImportSkills = props.availableSkills.length > 0;
   return (
     <section className="-mx-4 grid gap-5 border-border border-y bg-muted/10 px-4 py-5 sm:-mx-6 sm:px-6">
+      {canImportSkills ? (
+        <SkillImportSection
+          available={props.availableSkills}
+          onImported={props.onSkillsImported}
+          source={agentKindToSkillSource(props.hostKind)}
+        />
+      ) : null}
       {canImport ? (
         <SetupActionSection
           description="Copy native MCP entries into Ratel. After review, selected entries are removed from the agent config."
@@ -564,15 +635,52 @@ function AgentOperationPanel(props: {
           />
         </SetupActionSection>
       ) : null}
-      {!canImport && !canLink ? (
+      {!canImport && !canLink && !canImportSkills ? (
         <div>
           <h3 className="text-lg font-semibold tracking-tight">Nothing to do</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            This agent is linked, and all native entries are already in Ratel.
+            This agent is linked, all native entries are already in Ratel, and every skill is
+            managed.
           </p>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function SkillImportSection(props: {
+  available: SkillSummary[];
+  onImported: () => void | Promise<void>;
+  source: ReturnType<typeof agentKindToSkillSource>;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = props.available.length;
+  return (
+    <SetupActionSection
+      description="Bring this agent's skills into Ratel's managed folder so the gateway serves them."
+      icon={<Sparkles />}
+      title="Import skills"
+    >
+      <div className="grid gap-4 border border-border bg-background p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div>
+          <h4 className="font-medium">
+            {count} skill{count === 1 ? "" : "s"} not managed by Ratel
+          </h4>
+          <p className="mt-1 text-sm text-muted-foreground">Choose which to manage with Ratel.</p>
+        </div>
+        <Button className="min-h-12 px-6 text-base md:min-w-40" onClick={() => setOpen(true)}>
+          <Sparkles />
+          Import skills
+        </Button>
+      </div>
+      <ImportSkillsDialog
+        available={props.available}
+        onImported={props.onImported}
+        onOpenChange={setOpen}
+        open={open}
+        source={props.source}
+      />
+    </SetupActionSection>
   );
 }
 

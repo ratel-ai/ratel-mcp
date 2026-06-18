@@ -1,7 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
-import { SearchIcon, Sparkles, TriangleAlert } from "lucide-react";
+import { Download, SearchIcon, Sparkles, TriangleAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { skillPath, useRatelApp } from "@/App";
+import { ImportSkillsDialog } from "@/components/import-skills-dialog";
 import {
   PageHeader,
   PageHeaderActions,
@@ -27,31 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
-interface SkillSummary {
-  id: string;
-  name: string;
-  description: string;
-  tags: string[];
-  /** Managed skills report their origin agent (or "ratel" when created here);
-   *  available skills report the agent whose folder they live in. */
-  source: SkillSource;
-}
-
-interface SkillProblem {
-  id: string;
-  where: string;
-  reason: string;
-}
-
-interface SkillsResponse {
-  managedDir: string;
-  nativeDir: string;
-  codexDir: string;
-  managed: SkillSummary[];
-  available: SkillSummary[];
-  problems: SkillProblem[];
-}
+import type { SkillSummary, SkillsResponse } from "@/lib/skills";
 
 type LoadState =
   | { status: "loading" }
@@ -62,6 +39,7 @@ export function SkillsPage() {
   const { openCommandMenu, request, runAction, busy, token } = useRatelApp();
   const navigate = useNavigate();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [importOpen, setImportOpen] = useState(false);
 
   const openSkill = (id: string) => {
     void navigate({ to: skillPath(id, token) } as never);
@@ -101,11 +79,11 @@ export function SkillsPage() {
   const managed = ready?.managed ?? [];
   const available = ready?.available ?? [];
   const problems = ready?.problems ?? [];
-  const canActivateAll = available.length > 0;
+  const canImport = available.length > 0;
   const canDeactivateAll = managed.length > 0;
 
   return (
-    <main className="grid w-full gap-4 px-4 py-5 sm:px-6">
+    <main className="flex w-full flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
       <PageHeader className="sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <PageHeaderContent>
           <PageHeaderBackRow>
@@ -125,28 +103,22 @@ export function SkillsPage() {
             </div>
           </PageHeaderBackRow>
           <PageHeaderDescription>
-            Reusable playbooks Ratel serves through the gateway. Skills from Claude Code (
-            <code className="font-mono text-xs">~/.claude/skills</code>) and Codex (
-            <code className="font-mono text-xs">~/.codex/skills</code>) can be brought into Ratel's
-            managed folder to serve them; stop managing one to return it to where it came from.
+            Reusable playbooks Ratel manages and serves through the gateway. Import skills from
+            Claude Code or Codex to manage them here; stop managing one to return it to where it
+            came from.
           </PageHeaderDescription>
         </PageHeaderContent>
         <PageHeaderActions className="hidden items-center sm:flex">
           <NewSkillDialog onCreated={load} />
-          {canActivateAll && (
+          {canImport && (
             <Button
               className="h-10"
-              disabled={busy}
-              onClick={() =>
-                void mutate(
-                  `Now managing ${available.length} skill${available.length === 1 ? "" : "s"}`,
-                  "/api/skills/activate",
-                )
-              }
+              onClick={() => setImportOpen(true)}
               size="sm"
               variant="outline"
             >
-              Manage all
+              <Download />
+              Import skills
             </Button>
           )}
           {canDeactivateAll && (
@@ -209,10 +181,22 @@ export function SkillsPage() {
         </section>
       )}
 
+      {ready && managed.length === 0 && available.length > 0 && (
+        <EmptyState
+          title="No skills managed by Ratel yet"
+          description="Import skills from Claude Code or Codex to serve them through the gateway."
+        >
+          <Button onClick={() => setImportOpen(true)} size="sm">
+            <Download />
+            Import skills
+          </Button>
+        </EmptyState>
+      )}
+
       {ready && managed.length === 0 && available.length === 0 && (
         <EmptyState
-          title="No skills found"
-          description="Add skills under ~/.claude/skills (Claude Code) or ~/.codex/skills (Codex), or create one in Ratel, and they'll show up here."
+          title="No skills managed by Ratel yet"
+          description="Add skills under ~/.claude/skills (Claude Code) or ~/.codex/skills (Codex), or create one in Ratel, then import them here."
         />
       )}
 
@@ -244,28 +228,12 @@ export function SkillsPage() {
         />
       )}
 
-      {ready && available.length > 0 && (
-        <SkillSection
-          title="Not managed"
-          caption="Available in Claude Code / Codex. Bring one into Ratel to serve it through the gateway."
-          onView={openSkill}
-          skills={available}
-          renderAction={(skill) => (
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void mutate(`Now managing ${skill.name}`, "/api/skills/activate", {
-                  ids: [skill.id],
-                  source: skill.source,
-                })
-              }
-              size="sm"
-            >
-              Manage with Ratel
-            </Button>
-          )}
-        />
-      )}
+      <ImportSkillsDialog
+        available={available}
+        onImported={load}
+        onOpenChange={setImportOpen}
+        open={importOpen}
+      />
     </main>
   );
 }
@@ -363,7 +331,7 @@ function SkillSection(props: {
 
 function EmptyState(props: { title: string; description: string; children?: ReactNode }) {
   return (
-    <section className="-mx-4 grid min-h-72 place-items-center border-border border-y bg-muted/15 px-4 py-8 text-center sm:-mx-6 sm:px-6">
+    <section className="-mx-4 grid min-h-72 flex-1 place-items-center border-border border-y bg-muted/15 px-4 py-8 text-center sm:-mx-6 sm:px-6">
       <div className="grid max-w-md gap-3">
         <div className="mx-auto rounded-md bg-muted p-2 text-brand-green">
           <Sparkles className="size-5" />
