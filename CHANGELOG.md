@@ -2,6 +2,14 @@
 
 All notable changes to this package are documented here. The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-18
+
+### Changed
+- **Skills page (`ratel-mcp ui`) now emphasizes only Ratel-managed skills.** When no skills are managed it shows an empty state with an "Import skills" action instead of listing Claude Code / Codex skills inline. External skills are brought in through a dedicated, paginated import dialog, each row badged by source. The bulk "Manage all" button is replaced by "Import skills"; "Unmanage all", per-skill "Stop managing", and the "New skill" form are unchanged.
+
+### Added
+- **Skill import in Agent Setup (`ratel-mcp ui`).** Each agent gets a per-agent "Import skills" flow alongside the existing MCP import/link, plus an "N skills not managed by Ratel" hint on its card and detail page, mirroring the native-tools hint.
+
 ## [0.3.0] - 2026-06-17
 
 ### Added
