@@ -201,7 +201,6 @@ describe("buildGatewayFromConfig", () => {
           type: "ratel_tool_payload",
           server: "fs",
           tool_count: 2,
-          strategy: "payload",
         }),
       );
       const estimate = events.find((event) => event.type === "ratel_tool_payload");

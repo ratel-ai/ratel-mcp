@@ -199,7 +199,7 @@ describe("Claude statusline renderer", () => {
     expect(out).toContain("10m");
     expect(out).toContain("⎇ main");
     expect(out).toContain("Ratel on");
-    expect(out).toContain("saves ~1k (2 tools, payload)");
+    expect(out).toContain("saves ~1k (2 tools)");
   });
 
   it("falls back to old upstream_register tool counts", async () => {
@@ -211,7 +211,7 @@ describe("Claude statusline renderer", () => {
     );
 
     const out = stripAnsi(await renderRatelStatusline(ctx(fs), claudeInput()));
-    expect(out).toContain("could trim ~390 (3 tools, tool-count)");
+    expect(out).toContain("could trim ~390 (3 tools)");
   });
 
   it("handles null context and missing telemetry without throwing", async () => {

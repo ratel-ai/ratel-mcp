@@ -1,7 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BackupFs, HierarchyEnv, JsonFs } from "@ratel-ai/mcp-core";
+import {
+  type BackupFs,
+  defaultTelemetryDir,
+  type HierarchyEnv,
+  type JsonFs,
+  projectBucketDir,
+} from "@ratel-ai/mcp-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HandlerCtx } from "../cli/handlers/types.js";
 import { silentPromptAdapter } from "../cli/prompts.js";
@@ -247,6 +253,41 @@ describe("UI server — /api/config", () => {
     expect(body.scopes.project.available).toBe(true);
     expect(body.scopes.local.available).toBe(true);
     expect(body.projectRoot).toBe(ROOT);
+  });
+
+  it("includes per-server tool context estimates from Ratel telemetry", async () => {
+    session.fs.files.set(
+      USER_PATH,
+      JSON.stringify({ mcpServers: { fs: { type: "stdio", command: "echo" } } }),
+    );
+    const bucket = projectBucketDir(defaultTelemetryDir({ homeDir: HOME }), ROOT);
+    session.fs.files.set(
+      join(bucket, "2026-06-19T12-00-00.jsonl"),
+      `${JSON.stringify({
+        type: "ratel_tool_payload",
+        server: "fs",
+        tool_count: 2,
+        estimated_tokens: 1024,
+        ts: Date.UTC(2026, 5, 19, 12),
+      })}\n`,
+    );
+
+    const res = await fetch(apiUrl("/api/config"), { headers: authHeaders() });
+    const body = (await res.json()) as {
+      toolTokenEstimatesByServer: Record<
+        string,
+        {
+          toolCount: number;
+          estimatedTokens: number;
+          lastSeen: string | null;
+        }
+      >;
+    };
+    expect(body.toolTokenEstimatesByServer.fs).toMatchObject({
+      toolCount: 2,
+      estimatedTokens: 1024,
+      lastSeen: "2026-06-19T12:00:00.000Z",
+    });
   });
 
   it("marks project/local as unavailable when there is no project root", async () => {

@@ -23,7 +23,7 @@ export { createMcpServer } from "./server.js";
 export type { LoadSkillsOptions } from "./skills/load.js";
 export { defaultSkillDirs, loadSkills, parseSkillMd, SkillLoadError } from "./skills/load.js";
 export { AUTH_TOOL_ID } from "./tools/auth.js";
-export type { ToolPayloadTokenEstimate, UsageEstimatorOptions } from "./usage.js";
+export type { ToolTokenEstimate, UsageEstimatorOptions } from "./usage.js";
 export {
   DEFAULT_BYTES_PER_TOKEN,
   DEFAULT_FALLBACK_TOKENS_PER_TOOL,

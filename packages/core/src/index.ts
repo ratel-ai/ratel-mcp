@@ -11,4 +11,5 @@ export * from "./operations.js";
 export * from "./plan-exec.js";
 export * from "./probe.js";
 export * from "./statusline.js";
+export * from "./telemetry.js";
 export * from "./telemetry-paths.js";

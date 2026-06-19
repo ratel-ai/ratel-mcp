@@ -37,6 +37,7 @@ import {
 import { locateRatelBin, type ResolvedBin, whichRatelBin } from "./locate-bin.js";
 import { executePlan } from "./plan-exec.js";
 import { type ClaudeCodeStatuslineState, getClaudeCodeStatuslineState } from "./statusline.js";
+import { readLatestToolTokenEstimates, type ServerToolTokenEstimate } from "./telemetry.js";
 
 export type CoreFs = JsonFs & BackupFs;
 
@@ -69,6 +70,7 @@ export interface ConfigState {
   projectRoot: string | null;
   scopes: Record<RatelScope, ConfigScopeState>;
   backups: BackupManifest[];
+  toolTokenEstimatesByServer: Record<string, ServerToolTokenEstimate>;
 }
 
 export interface EntryMutationResult {
@@ -133,6 +135,7 @@ export async function getConfigState(ctx: CoreContext): Promise<ConfigState> {
     projectRoot: ctx.env.projectRoot ?? null,
     scopes,
     backups: await listBackups(ctx.env, ctx.fs),
+    toolTokenEstimatesByServer: (await readLatestToolTokenEstimates(ctx)).byServer,
   };
 }
 

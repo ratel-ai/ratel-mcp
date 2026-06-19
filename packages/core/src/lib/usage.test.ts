@@ -11,7 +11,6 @@ describe("usage estimator", () => {
     ]);
 
     expect(a).toEqual(b);
-    expect(a.strategy).toBe("payload");
     expect(a.estimatedTokens).toBeGreaterThan(0);
   });
 
@@ -19,7 +18,6 @@ describe("usage estimator", () => {
     expect(estimateToolCountTokens(3)).toEqual({
       toolCount: 3,
       estimatedTokens: 390,
-      strategy: "count-fallback",
     });
     expect(estimateToolCountTokens(-1).estimatedTokens).toBe(0);
   });

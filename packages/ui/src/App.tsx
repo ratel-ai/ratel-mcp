@@ -103,6 +103,14 @@ export interface ConfigResponse {
   projectRoot: string | null;
   scopes: Record<RatelScope, ScopeState>;
   backups: BackupManifest[];
+  toolTokenEstimatesByServer: Record<string, ServerToolTokenEstimate>;
+}
+
+export interface ServerToolTokenEstimate {
+  server: string;
+  toolCount: number;
+  estimatedTokens: number;
+  lastSeen: string | null;
 }
 
 interface AgentHostDetection {

@@ -7,9 +7,12 @@ import type { HierarchyEnv } from "./hierarchy.js";
 import type { JsonFs } from "./io.js";
 import { writeJson } from "./io.js";
 import { isPlainObject, stableJsonStringify } from "./json.js";
-import { estimateToolCountTokens } from "./lib/usage.js";
 import type { ResolvedBin } from "./locate-bin.js";
-import { defaultTelemetryDir, projectBucketDir } from "./telemetry-paths.js";
+import {
+  readLatestToolTokenEstimates,
+  summarizeToolTokenEstimates,
+  type ToolTokenEstimateSummary,
+} from "./telemetry.js";
 
 export type ClaudeStatuslineInstallStatus = "not-installed" | "installed" | "other";
 
@@ -197,7 +200,11 @@ export async function renderRatelStatusline(
   try {
     const payload = parseClaudeStatuslineInput(stdinJson);
     const state = await getClaudeCodeStatuslineState(ctx);
-    const telemetry = await readLatestTelemetrySummary(ctx, payload.projectDir, opts);
+    const usage = await readLatestToolTokenEstimates(ctx, {
+      projectDir: payload.projectDir,
+      telemetryDir: opts.telemetryDir,
+    });
+    const telemetry = summarizeToolTokenEstimates(usage.byServer);
     return renderStatusline(payload, state, telemetry, opts);
   } catch (err) {
     ctx.log?.(`[ratel] statusline failed open: ${(err as Error).message}`);
@@ -213,12 +220,6 @@ interface ParsedClaudeStatuslineInput {
   usedPercent: number | null;
   durationMs: number | null;
   branch: string | null;
-}
-
-interface TelemetrySummary {
-  source: "ratel_tool_payload" | "upstream_register" | "none";
-  toolCount: number;
-  estimatedTokens: number;
 }
 
 function parseClaudeStatuslineInput(stdinJson: string): ParsedClaudeStatuslineInput {
@@ -257,7 +258,7 @@ function parseClaudeStatuslineInput(stdinJson: string): ParsedClaudeStatuslineIn
 function renderStatusline(
   input: ParsedClaudeStatuslineInput,
   state: ClaudeCodeStatuslineState,
-  telemetry: TelemetrySummary,
+  telemetry: ToolTokenEstimateSummary,
   opts: RenderRatelStatuslineOptions,
 ): string {
   const dot = state.ratelEnabled ? `${ANSI.green}●${ANSI.reset}` : `${ANSI.amber}○${ANSI.reset}`;
@@ -287,14 +288,13 @@ function formatRatelMode(state: ClaudeCodeStatuslineState): string {
 
 function formatTelemetryNote(
   state: ClaudeCodeStatuslineState,
-  telemetry: TelemetrySummary,
+  telemetry: ToolTokenEstimateSummary,
 ): string {
-  if (telemetry.source === "none") {
+  if (!telemetry.hasData) {
     return `${ANSI.gray}waiting for Ratel telemetry${ANSI.reset}`;
   }
   const verb = state.ratelEnabled ? "saves" : "could trim";
-  const source = telemetry.source === "ratel_tool_payload" ? "payload" : "tool-count";
-  return `${verb} ~${formatTokenCount(telemetry.estimatedTokens)} (${telemetry.toolCount} tools, ${source})`;
+  return `${verb} ~${formatTokenCount(telemetry.estimatedTokens)} (${telemetry.toolCount} tools)`;
 }
 
 function contextBar(percent: number | null): string {
@@ -303,76 +303,6 @@ function contextBar(percent: number | null): string {
   const filled = Math.round(width * ratio);
   const color = ratio >= 0.75 ? ANSI.amber : ANSI.green;
   return `${color}${"█".repeat(filled)}${ANSI.gray}${"░".repeat(width - filled)}${ANSI.reset}`;
-}
-
-async function readLatestTelemetrySummary(
-  ctx: StatuslineContext,
-  projectDir: string | null,
-  opts: RenderRatelStatuslineOptions,
-): Promise<TelemetrySummary> {
-  if (!projectDir) return emptyTelemetry();
-  const root = defaultTelemetryDir({ homeDir: ctx.env.homeDir, telemetryDir: opts.telemetryDir });
-  const bucket = projectBucketDir(root, projectDir);
-  const files = (await ctx.fs.list(bucket).catch(() => [])).filter((name) =>
-    name.endsWith(".jsonl"),
-  );
-  files.sort();
-  const latest = files.at(-1);
-  if (!latest) return emptyTelemetry();
-  const text = await ctx.fs.read(join(bucket, latest)).catch(() => null);
-  if (!text) return emptyTelemetry();
-
-  const payloadByServer = new Map<string, { estimatedTokens: number; toolCount: number }>();
-  const countByServer = new Map<string, number>();
-  let anonymous = 0;
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    let event: Record<string, unknown> | null = null;
-    try {
-      event = unwrapTraceEvent(JSON.parse(line));
-    } catch {
-      continue;
-    }
-    if (!event) continue;
-    const type = typeof event.type === "string" ? event.type : "";
-    const server = typeof event.server === "string" ? event.server : `unknown:${anonymous++}`;
-    const toolCount = numberValue(event.tool_count) ?? numberValue(event.toolCount) ?? 0;
-    if (type === "ratel_tool_payload") {
-      const estimatedTokens =
-        numberValue(event.estimated_tokens) ?? numberValue(event.estimatedTokens);
-      if (estimatedTokens !== null) {
-        payloadByServer.set(server, { estimatedTokens, toolCount });
-      }
-    } else if (type === "upstream_register") {
-      countByServer.set(server, toolCount);
-    }
-  }
-
-  if (payloadByServer.size > 0) {
-    let estimatedTokens = 0;
-    let toolCount = 0;
-    for (const value of payloadByServer.values()) {
-      estimatedTokens += value.estimatedTokens;
-      toolCount += value.toolCount;
-    }
-    for (const [server, count] of countByServer) {
-      if (payloadByServer.has(server)) continue;
-      const fallback = estimateToolCountTokens(count);
-      estimatedTokens += fallback.estimatedTokens;
-      toolCount += fallback.toolCount;
-    }
-    return { source: "ratel_tool_payload", estimatedTokens, toolCount };
-  }
-  if (countByServer.size > 0) {
-    const toolCount = Array.from(countByServer.values()).reduce((sum, count) => sum + count, 0);
-    const fallback = estimateToolCountTokens(toolCount);
-    return {
-      source: "upstream_register",
-      toolCount: fallback.toolCount,
-      estimatedTokens: fallback.estimatedTokens,
-    };
-  }
-  return emptyTelemetry();
 }
 
 async function detectClaudeRatelEnabled(
@@ -477,18 +407,6 @@ async function readSettingsLenient(
     warnings.push(`Failed to read ${prefix}: ${(err as Error).message}`);
     return null;
   }
-}
-
-function emptyTelemetry(): TelemetrySummary {
-  return { source: "none", toolCount: 0, estimatedTokens: 0 };
-}
-
-function unwrapTraceEvent(value: unknown): Record<string, unknown> | null {
-  if (!isPlainObject(value)) return null;
-  if (typeof value.type === "string") return value;
-  if (isPlainObject(value.event)) return value.event;
-  if (isPlainObject(value.data)) return value.data;
-  return null;
 }
 
 function numericUsage(value: unknown): number | null {
