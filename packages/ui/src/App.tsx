@@ -10,6 +10,7 @@ import {
   Server,
   Settings2,
   Sparkles,
+  Target,
   UserCircle,
 } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
@@ -264,7 +265,7 @@ export function AppShell() {
   );
 
   const goTo = useCallback(
-    (to: "/" | "/agent-setup" | "/skills") => {
+    (to: "/" | "/agent-setup" | "/skills" | "/intents") => {
       const tokenizedPath = token ? `${to}?t=${encodeURIComponent(token)}` : to;
       void navigate({ to: tokenizedPath } as never);
     },
@@ -371,7 +372,7 @@ export function AppShell() {
 
 function ProductSidebar(props: {
   config: ConfigResponse | null;
-  onNavigate: (to: "/" | "/agent-setup" | "/skills") => void;
+  onNavigate: (to: "/" | "/agent-setup" | "/skills" | "/intents") => void;
   pathname: string;
 }) {
   return (
@@ -406,6 +407,12 @@ function ProductSidebar(props: {
                 icon={<Sparkles />}
                 label="Skills"
                 onClick={() => props.onNavigate("/skills")}
+              />
+              <ProductSidebarItem
+                active={props.pathname === "/intents"}
+                icon={<Target />}
+                label="Intents"
+                onClick={() => props.onNavigate("/intents")}
               />
             </SidebarMenu>
           </SidebarGroupContent>
@@ -536,7 +543,7 @@ function CommandMenu(props: {
   onAddToolSource: () => void;
   onImport: () => void;
   onLink: () => void;
-  onNavigate: (to: "/" | "/agent-setup" | "/skills") => void;
+  onNavigate: (to: "/" | "/agent-setup" | "/skills" | "/intents") => void;
   onSelectAgent: (kind: AgentHostKind) => void;
   onSelectToolSource: (scope: RatelScope, name: string) => void;
   open: boolean;
@@ -570,6 +577,10 @@ function CommandMenu(props: {
               <CommandItem onSelect={() => props.onNavigate("/skills")}>
                 <Sparkles />
                 Skills
+              </CommandItem>
+              <CommandItem onSelect={() => props.onNavigate("/intents")}>
+                <Target />
+                Intents
               </CommandItem>
             </CommandGroup>
             {agentItems.length > 0 && (
