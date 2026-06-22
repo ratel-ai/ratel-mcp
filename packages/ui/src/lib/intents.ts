@@ -15,7 +15,7 @@ export interface IntentRecord {
   lastSeen: string;
   /** Server-computed ranking score (frequency + recency). Higher = suggest first. */
   score?: number;
-  /** Evidence spans/turns that support this intent — the "proof". */
+  /** Evidence spans/turns that support this intent - the "proof". */
   evidences?: string[];
 }
 
@@ -305,16 +305,16 @@ export function skillGenModelOptions(provider: SkillGenProvider): ModelOption[] 
   if (provider === "claude-cli") {
     return [
       ...base,
-      { value: "haiku", label: "Haiku — fastest" },
-      { value: "sonnet", label: "Sonnet — balanced" },
-      { value: "opus", label: "Opus — most capable" },
+      { value: "haiku", label: "Haiku - fastest" },
+      { value: "sonnet", label: "Sonnet - balanced" },
+      { value: "opus", label: "Opus - most capable" },
     ];
   }
   return [
     ...base,
-    { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5 — fastest" },
-    { value: "claude-sonnet-4-6", label: "Sonnet 4.6 — balanced (default)" },
-    { value: "claude-opus-4-8", label: "Opus 4.8 — most capable" },
+    { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5 - fastest" },
+    { value: "claude-sonnet-4-6", label: "Sonnet 4.6 - balanced (default)" },
+    { value: "claude-opus-4-8", label: "Opus 4.8 - most capable" },
   ];
 }
 

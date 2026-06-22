@@ -142,7 +142,7 @@ export function ChatsPage() {
           </PageHeaderBackRow>
           <PageHeaderDescription>
             Recent conversations captured by the Ratel plugin. Open one to read its turns, or remove
-            chats you no longer want analyzed — chats with no extracted intents are safe to clear.
+            chats you no longer want analyzed - chats with no extracted intents are safe to clear.
           </PageHeaderDescription>
         </PageHeaderContent>
         <PageHeaderActions className="hidden items-center sm:flex">
@@ -276,7 +276,7 @@ function ChatRow(props: {
 /**
  * Force-analyze just this chat (bypasses the cadence/recency due-checks). The
  * "Analyzing…" state is driven by the server's run status (`processing`), so it
- * persists across navigation — leaving and returning to Chats still shows it.
+ * persists across navigation - leaving and returning to Chats still shows it.
  */
 function AnalyzeChatButton(props: {
   sessionId: string;
@@ -358,7 +358,7 @@ function DeleteChatButton(props: {
           <DialogTitle>Delete this chat?</DialogTitle>
           <DialogDescription>
             Removes the captured conversation “{props.title}”. This can't be undone.
-            {props.safeToRemove ? " No intents were extracted from it — safe to remove." : ""}
+            {props.safeToRemove ? " No intents were extracted from it - safe to remove." : ""}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

@@ -35,8 +35,8 @@ const PAGE_SIZE = 6;
 
 /**
  * Bring unmanaged Claude Code / Codex skills into Ratel's managed folder. A
- * single screen: pick skills, then import. There is no conflict step — a name
- * already managed by Ratel is excluded from `available` upstream — so unlike the
+ * single screen: pick skills, then import. There is no conflict step - a name
+ * already managed by Ratel is excluded from `available` upstream - so unlike the
  * MCP import this stays a simple checkbox list.
  */
 export function ImportSkillsDialog(props: ImportSkillsDialogProps) {

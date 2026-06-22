@@ -620,7 +620,7 @@ export function dmxBloomRootActive(bloom: boolean, halo: number | undefined): bo
   return bloom || clampHalo(halo) > 0;
 }
 
-/** Root class when `halo` > 0 — CSS widens drop-shadow falloff for a softer, more diffuse glow. */
+/** Root class when `halo` > 0 - CSS widens drop-shadow falloff for a softer, more diffuse glow. */
 export function dmxBloomHaloSpreadClass(halo: number | undefined): "dmx-bloom-halo" | false {
   return clampHalo(halo) > 0 ? "dmx-bloom-halo" : false;
 }

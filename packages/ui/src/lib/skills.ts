@@ -39,7 +39,7 @@ export function fetchSkills(
 /**
  * Map an Agent Setup host kind to the skill `source` used by `/api/skills`.
  * The agent pages speak in host kinds ("claude-code"), while skills are tagged
- * with the shorter agent source ("claude") — this is the one bit of glue.
+ * with the shorter agent source ("claude") - this is the one bit of glue.
  */
 export function agentKindToSkillSource(kind: AgentHostKind): SkillSource {
   return kind === "codex" ? "codex" : "claude";

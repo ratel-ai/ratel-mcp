@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 /**
  * Render Markdown with the app's design tokens. HTML in the source is NOT
  * rendered (no rehype-raw) and react-markdown sanitizes dangerous URLs, so a
- * skill body — even an untrusted one — can't inject markup or `javascript:`
+ * skill body - even an untrusted one - can't inject markup or `javascript:`
  * links. Used to preview skill instructions in read mode; edit mode shows raw.
  *
  * Each override forwards only the props it needs (children / href / className)

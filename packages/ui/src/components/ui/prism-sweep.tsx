@@ -9,7 +9,7 @@ import {
 } from "@/lib/dotmatrix-core";
 import { useDotMatrixPhases, usePrefersReducedMotion } from "@/lib/dotmatrix-hooks";
 
-// Longest anti-diagonal index (row+col) on the grid — used to normalize the sweep.
+// Longest anti-diagonal index (row+col) on the grid - used to normalize the sweep.
 const DIAGONAL_SPAN = (MATRIX_SIZE - 1) * 2;
 
 /**

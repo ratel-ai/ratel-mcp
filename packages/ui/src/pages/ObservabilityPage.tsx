@@ -12,7 +12,7 @@ type LoadState =
 
 /**
  * Analysis-run telemetry, rendered as a tab inside the Intents page (no page
- * header of its own — the Intents page provides it).
+ * header of its own - the Intents page provides it).
  */
 export function ObservabilityPanel() {
   const { request } = useRatelApp();
@@ -40,7 +40,7 @@ export function ObservabilityPanel() {
   return (
     <div className="flex flex-col gap-4">
       <p className="px-1 text-muted-foreground text-sm">
-        A history of every analysis run — when Ratel read your captured chats and extracted intents,
+        A history of every analysis run - when Ratel read your captured chats and extracted intents,
         how long it took, and what it found. Use it to confirm analysis is running and spot
         failures.
       </p>
@@ -89,7 +89,7 @@ function SummaryHeader(props: { runs: RunLogEntry[]; summary: ObservabilityRespo
     cachedSessions += run.sessions.filter((session) => session.cacheHit).length;
   }
   const cacheHitRate =
-    totalSessions > 0 ? `${Math.round((cachedSessions / totalSessions) * 100)}%` : "—";
+    totalSessions > 0 ? `${Math.round((cachedSessions / totalSessions) * 100)}%` : "-";
 
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -101,7 +101,7 @@ function SummaryHeader(props: { runs: RunLogEntry[]; summary: ObservabilityRespo
       <SummaryCard
         hint="When analysis last ran"
         label="Last run"
-        value={summary.lastRunAt ? relativeTime(summary.lastRunAt) : "—"}
+        value={summary.lastRunAt ? relativeTime(summary.lastRunAt) : "-"}
       />
       <SummaryCard
         hint="Typical time one run takes"
@@ -150,7 +150,7 @@ function Glossary() {
           automatically on a timer.
         </GlossaryItem>
         <GlossaryItem term="Trigger">
-          What started the run — <span className="font-mono text-xs">manual</span> (you clicked Run
+          What started the run - <span className="font-mono text-xs">manual</span> (you clicked Run
           now), <span className="font-mono text-xs">cadence</span> (the automatic timer), or{" "}
           <span className="font-mono text-xs">idle</span> (a session went quiet).
         </GlossaryItem>
@@ -158,7 +158,7 @@ function Glossary() {
           Something you repeatedly try to get an agent to do, extracted from the conversation.
         </GlossaryItem>
         <GlossaryItem term="Gap">
-          An intent that no managed skill covers yet — a candidate for “Offer New Skills” on the
+          An intent that no managed skill covers yet - a candidate for “Offer New Skills” on the
           Intents page.
         </GlossaryItem>
         <GlossaryItem term="Session">
@@ -166,7 +166,7 @@ function Glossary() {
         </GlossaryItem>
         <GlossaryItem term="Cached">
           The conversation hadn’t changed since last time, so the result was reused instead of
-          re-running the model — faster and cheaper.
+          re-running the model - faster and cheaper.
         </GlossaryItem>
       </dl>
     </details>
@@ -205,7 +205,7 @@ function RunsChart(props: { runs: RunLogEntry[] }) {
   const plotH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
 
   // Oldest-to-newest, capped to the last 30 runs. A dependency-free inline-SVG
-  // line chart — recharts is intentionally avoided (it broke the dev bundle).
+  // line chart - recharts is intentionally avoided (it broke the dev bundle).
   const recent = [...props.runs].slice(0, 30).reverse();
   const max = Math.max(1, ...recent.map((run) => Math.max(run.totalIntents, run.totalGaps)));
 
@@ -476,7 +476,7 @@ function EmptyState(props: { title: string; description: string; children?: Reac
 }
 
 function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  if (!Number.isFinite(ms) || ms <= 0) return "-";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const seconds = ms / 1000;
   if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
@@ -500,7 +500,7 @@ function relativeTime(iso: string): string {
   return new Date(then).toLocaleDateString();
 }
 
-/** "3 Mar 14:02" — compact day/month + time, for chart marker tooltips. */
+/** "3 Mar 14:02" - compact day/month + time, for chart marker tooltips. */
 function shortDateTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;

@@ -192,8 +192,10 @@ async function route(
     const body = await readJsonBody(req);
     return deactivateSkillsRoute(ctx, body);
   }
+  // Note: `offer` is a reserved sub-path (skill-gen jobs), not a skill id — let it
+  // fall through to the /api/skills/offer* handlers below.
   const skillMatch = /^\/api\/skills\/([^/]+)$/.exec(path);
-  if (skillMatch) {
+  if (skillMatch && skillMatch[1] !== "offer") {
     const id = decodeURIComponent(skillMatch[1]);
     if (method === "GET") {
       return getSkill(ctx, id);

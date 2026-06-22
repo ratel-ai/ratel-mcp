@@ -181,7 +181,7 @@ export function IntentsPage() {
       const data = await load();
       // Keep the banner only while the server reports an in-flight run; the polling
       // effect clears it when that finishes. Otherwise (error, or a synchronous
-      // backend with no `running` flag) clear it now — the results are already in.
+      // backend with no `running` flag) clear it now - the results are already in.
       if (!ok || !data?.running) setRunning(false);
     },
     [runAction, request, load],
@@ -209,7 +209,7 @@ export function IntentsPage() {
           </PageHeaderBackRow>
           <PageHeaderDescription>
             What you keep asking your agents to do, extracted from captured chat and matched against
-            the skills Ratel manages. Gaps are intents no skill covers — offer a new skill to close
+            the skills Ratel manages. Gaps are intents no skill covers - offer a new skill to close
             them.
           </PageHeaderDescription>
         </PageHeaderContent>
@@ -262,7 +262,7 @@ export function IntentsPage() {
 
       {analysisOff && (
         <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          Analysis is off — chat isn't being captured and runs are disabled. Turn it on in{" "}
+          Analysis is off - chat isn't being captured and runs are disabled. Turn it on in{" "}
           <strong className="font-medium">Settings → Enabled</strong>.
         </div>
       )}
@@ -510,7 +510,7 @@ function IntentRow(props: {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        {/* Offer a skill for any intent — covered ones can still want a better/new skill;
+        {/* Offer a skill for any intent - covered ones can still want a better/new skill;
             the generator already gets existing skill IDs so it won't duplicate. */}
         <OfferSkillCell
           initialJob={props.initialJob}
@@ -523,7 +523,7 @@ function IntentRow(props: {
   );
 }
 
-/** "seen in N sessions" — opens the list of those chats (capped), each a link to its page. */
+/** "seen in N sessions" - opens the list of those chats (capped), each a link to its page. */
 function SessionsPopover(props: {
   sessionIds: string[];
   sessionTitles: SessionTitles;
@@ -728,7 +728,7 @@ const PROGRESS_CAP = 92;
  * the review dialog pre-filled with the draft.
  *
  * The job lives on the server, so it survives navigation: `initialJob` hydrates
- * this cell from the server's job registry — a still-running job resumes its
+ * this cell from the server's job registry - a still-running job resumes its
  * progress bar, and a finished one shows a "Review skill" button that reopens the
  * draft. That's what keeps a result reachable after you leave and come back.
  */
@@ -937,7 +937,7 @@ function OfferSkillCell(props: {
           ) : (
             <span className="size-1.5 rounded-full bg-white/90 motion-safe:animate-pulse" />
           )}
-          Skill ready — review
+          Skill ready - review
         </Button>
       ) : (
         <Button onClick={() => void start()} size="sm" variant="outline">
@@ -1005,7 +1005,7 @@ function OfferSkillReviewDialog(props: {
         <DialogHeader>
           <DialogTitle>Offer a new skill</DialogTitle>
           <DialogDescription className="line-clamp-2">
-            Drafted for “{props.intent}”. Review, optionally edit, then save — it writes a SKILL.md
+            Drafted for “{props.intent}”. Review, optionally edit, then save - it writes a SKILL.md
             into Ratel's managed folder.
           </DialogDescription>
         </DialogHeader>
@@ -1194,7 +1194,7 @@ function AnalysisSettingsDialog() {
                   onCheckedChange={(v) => update({ cadence: { ...cadence, auto: v } })}
                 />
               }
-              hint="Let the gateway run analysis automatically in the background on a timer. Off by default — manual Run now always works."
+              hint="Let the gateway run analysis automatically in the background on a timer. Off by default - manual Run now always works."
               label="Automatic runs"
             />
             <div className="grid items-end gap-3 sm:grid-cols-2">
@@ -1223,12 +1223,12 @@ function AnalysisSettingsDialog() {
                 id="cadence-recent"
                 inputMode="decimal"
                 onChange={(e) => setNum("recentHours", e.target.value)}
-                placeholder="e.g. 5 — leave blank for no limit"
+                placeholder="e.g. 5 - leave blank for no limit"
                 value={nums.recentHours ?? ""}
               />
             </Field>
             <p className="px-1 text-muted-foreground text-xs">
-              Bulk and automatic runs only analyze chats updated within this window — keeps a run
+              Bulk and automatic runs only analyze chats updated within this window - keeps a run
               from churning through every old chat. Per-chat “Analyze intents” (on the Chats page)
               ignores it.
             </p>
@@ -1298,14 +1298,14 @@ function AnalysisSettingsDialog() {
             </div>
             {extractorProvider === "http" && (
               <p className="px-1 text-muted-foreground text-xs">
-                The sidecar serves whichever model it was started with — set it in the sidecar's{" "}
+                The sidecar serves whichever model it was started with - set it in the sidecar's{" "}
                 <code className="font-mono">settings.json</code> (or{" "}
                 <code className="font-mono">CLAIM_EXTRACTOR_MODEL</code>), not here.
               </p>
             )}
             {extractorProvider === "naive" && (
               <p className="px-1 text-muted-foreground text-xs">
-                Naive mode needs no model — it records one intent per user message (good for testing
+                Naive mode needs no model - it records one intent per user message (good for testing
                 the pipeline).
               </p>
             )}
@@ -1411,7 +1411,7 @@ function AnalysisSettingsDialog() {
             </p>
             {skillGenProvider === "claude-cli" && (
               <p className="px-1 text-muted-foreground text-xs">
-                Uses your local <code className="font-mono">claude</code> CLI — no API key needed.
+                Uses your local <code className="font-mono">claude</code> CLI - no API key needed.
               </p>
             )}
           </SettingsSection>
