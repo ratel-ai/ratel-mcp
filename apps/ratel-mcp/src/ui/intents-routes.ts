@@ -216,11 +216,14 @@ function summarizeRunErrors(errors: Array<{ sessionId: string; message: string }
 }
 
 /**
- * POST /api/intents/run — manual trigger. With `sessionId`, analyzes just that
- * chat (always, ignoring due-checks). With `all: true`, re-analyzes every chat
- * (ignores the new-activity/recency filters). Otherwise analyzes only chats with
- * new activity since their last analysis (skips up-to-date chats so it doesn't
- * needlessly re-run the model). Returns immediately; watch `running` via GET /api/intents.
+ * POST /api/intents/run — manual trigger. With `sessionId`, analyzes just that one
+ * chat. Both bare "Run now" and `all: true` analyze EVERY captured chat (so the button
+ * is never a no-op once chats are up to date — re-running is exactly what the user is
+ * asking for); they differ only in caching: "Run now" reuses cached extractions (fast,
+ * re-extracts only changed/uncached chats), while `all` forces fresh extraction. The
+ * cache makes "analyze everything" cheap for unchanged chats, so there's no separate
+ * incremental path here — that lives in the background scheduler. Returns immediately;
+ * watch `running` via GET /api/intents.
  */
 export async function runIntentsRoute(
   ctx: HandlerCtx,
@@ -228,13 +231,11 @@ export async function runIntentsRoute(
 ): Promise<ApiResponse> {
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
   const all = body.all === true;
-  // "Re-analyze all" forces fresh extraction (bypass cache); the incremental and
-  // per-chat paths keep using the cache for speed.
   const opts = sessionId
     ? { sessionId }
     : all
       ? { all: true, bypassCache: true }
-      : { everyNMessages: 1, onIdle: true };
+      : { all: true };
   const trigger = sessionId ? "session" : all ? "all" : "manual";
   const result = await startAnalysisRun(ctx, opts, trigger);
   return ok(result);

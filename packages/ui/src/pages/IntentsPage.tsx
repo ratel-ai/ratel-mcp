@@ -244,7 +244,7 @@ export function IntentsPage() {
             disabled={busy || showRunning || analysisOff}
             onClick={() => void runNow()}
             size="sm"
-            title="Analyze chats with new activity since their last analysis"
+            title="Analyze every chat (reuses cached results for unchanged chats)"
           >
             {showRunning ? <Spinner /> : <Play />}
             {showRunning ? "Analyzing…" : "Run now"}
