@@ -1,14 +1,22 @@
 """HTTP sidecar exposing the ClaimExtractor model over Ratel's extractor contract.
 
-Ratel's `HttpIntentExtractor` always speaks one contract, regardless of where the
-model runs (Apple-Silicon sidecar, Docker+GPU box, or a remote/cloud endpoint):
+Ratel's `HttpIntentExtractor` speaks the orbitals claim-extractor contract, so the
+same client serves every deployment (Apple-Silicon sidecar, Docker+GPU box, or the
+hosted Principled endpoint) — only the URL and auth differ:
 
-    POST /v1/extract
-      { "model"?: str,
-        "messages": [{ "role": "user"|"assistant", "content": str }, ...],
-        "service_description"?: object }
-    -> { "claims":  [{ "subtype": str, "content": str, "evidences"?: [str] }, ...],
-         "intents": [{ "content": str, "evidences"?: [str] }, ...] }
+    POST /orbitals/claim-extractor/extract
+      { "conversation": [{ "role": "user"|"assistant", "content": str }, ...],
+        "model"?: str,
+        "skip_evidences"?: bool,
+        "ai_service_description"?: object }
+    -> { "extractions": { "claims":  [{ "subtype": str, "content": str, "evidences"?: [str] }, ...],
+                          "intents": [{ "content": str, "evidences"?: [str] }, ...] },
+         "model": str, "usage": { ... }, "time_taken": float }
+
+`skip_evidences`/`model` are honored by the hosted endpoint; the sidecar serves the
+single model + settings it was launched with (settings.json / CLAIM_EXTRACTOR_*) and
+ignores per-request overrides. The legacy `POST /v1/extract` route (body `messages`,
+unwrapped `{claims, intents}` response) remains for older clients.
 
 Backends (set CLAIM_EXTRACTOR_BACKEND):
   - mock          deterministic, no model — verify Ratel<->sidecar wiring anywhere
@@ -28,7 +36,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -52,9 +60,22 @@ class Message(BaseModel):
 
 
 class ExtractRequest(BaseModel):
+    """Legacy /v1/extract body."""
+
     messages: list[Message]
     model: Optional[str] = None
     service_description: Optional[Any] = None
+
+
+class OrbitalsExtractRequest(BaseModel):
+    """orbitals claim-extractor body. `conversation` may be a list of messages, a
+    single message, or a bare string; `skip_evidences`/`model` are accepted for
+    contract parity but ignored here (the sidecar serves its configured model)."""
+
+    conversation: Union[list[Message], Message, str]
+    ai_service_description: Optional[Any] = None
+    skip_evidences: Optional[bool] = None
+    model: Optional[str] = None
 
 
 app = FastAPI(title="Ratel ClaimExtractor sidecar")
@@ -83,14 +104,50 @@ def health() -> dict[str, Any]:
 
 @app.post("/v1/extract")
 def extract(req: ExtractRequest) -> dict[str, Any]:
+    """Legacy contract: returns the unwrapped ``{claims, intents}`` directly."""
+    normalized, _usage, _elapsed = _run_extraction(req.messages, req.service_description)
+    return normalized
+
+
+@app.post("/orbitals/claim-extractor/extract")
+def orbitals_extract(req: OrbitalsExtractRequest) -> dict[str, Any]:
+    """orbitals contract: same extraction, wrapped in ``extractions`` with usage/timing
+    so Ratel can point at this sidecar or the hosted endpoint interchangeably."""
+    messages = _coerce_conversation(req.conversation)
+    normalized, usage, elapsed = _run_extraction(messages, req.ai_service_description)
+    return {
+        "extractions": {"intents": normalized["intents"], "claims": normalized["claims"]},
+        "model": MODEL_ID,
+        "usage": usage,
+        "time_taken": elapsed,
+    }
+
+
+def _coerce_conversation(conversation: Union[list[Message], Message, str]) -> list[Message]:
+    """Accept the orbitals ``conversation`` union and reduce it to a list of messages
+    (a bare string becomes a single user turn)."""
+    if isinstance(conversation, str):
+        return [Message(role="user", content=conversation)]
+    if isinstance(conversation, Message):
+        return [conversation]
+    return list(conversation)
+
+
+def _run_extraction(
+    messages: list[Message], service_description: Any
+) -> tuple[dict[str, Any], dict[str, int], float]:
+    """Shared extraction core for both routes. Returns the normalized
+    ``{claims, intents}`` plus a usage dict and the elapsed seconds."""
     # Send only the last N messages to the model (settings.maxMessages). Long
     # transcripts are the main driver of MPS latency/timeouts, and recent turns
     # carry the live intent; 0 disables the cap.
-    messages = limit_messages(req.messages, MAX_MESSAGES)
-    capped = "" if len(messages) == len(req.messages) else f" (capped from {len(req.messages)})"
+    capped_messages = limit_messages(messages, MAX_MESSAGES)
+    capped = (
+        "" if len(capped_messages) == len(messages) else f" (capped from {len(messages)})"
+    )
     logger.info(
         "extract: %d messages%s | model=%s evidence=%s intentsOnly=%s maxTokens=%s",
-        len(messages),
+        len(capped_messages),
         capped,
         MODEL_ID,
         "on" if not SETTINGS["skipEvidences"] else "off",
@@ -98,28 +155,43 @@ def extract(req: ExtractRequest) -> dict[str, Any]:
         int(SETTINGS["maxTokens"]) or "∞",
     )
     if MOCK:
-        return _extract_mock(messages)
+        return _extract_mock(capped_messages), _empty_usage(), 0.0
     started = time.monotonic()
     try:
         # One inference at a time — see _extract_lock (MPS is not concurrency-safe).
         with _extract_lock:
-            result = _extract_with_orbitals(messages, req.service_description)
+            result = _extract_with_orbitals(capped_messages, service_description)
         normalized = _normalize(result)
-        usage = _attr(result, "usage")
+        elapsed = time.monotonic() - started
+        usage = _usage_dict(_attr(result, "usage"))
         logger.info(
             "extract done in %.1fs: %d intents, %d claims (completion_tokens=%s)",
-            time.monotonic() - started,
+            elapsed,
             len(normalized["intents"]),
             len(normalized["claims"]),
-            _attr(usage, "completion_tokens"),
+            usage["completion_tokens"],
         )
         _warn_if_suspect(result, normalized)
-        return normalized
+        return normalized, usage, elapsed
     except Exception as e:  # surface the cause; this is a local dev sidecar
         logger.exception("extract failed after %.1fs", time.monotonic() - started)
         from fastapi import HTTPException
 
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}") from e
+
+
+def _empty_usage() -> dict[str, int]:
+    return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+
+def _usage_dict(usage: Any) -> dict[str, int]:
+    """Coerce an orbitals usage object/dict into the wire contract's int fields."""
+    out = _empty_usage()
+    for key in out:
+        value = _attr(usage, key)
+        if isinstance(value, (int, float)):
+            out[key] = int(value)
+    return out
 
 
 def _warn_if_suspect(result: Any, normalized: dict[str, Any]) -> None:

@@ -1,5 +1,6 @@
 import {
   type AnalysisConfig,
+  type ExtractorConfig,
   type HierarchyEnv,
   type JsonFs,
   parseConfig,
@@ -92,6 +93,21 @@ function mergeKey<T extends WithApiKey>(incoming: T, existing?: T): T {
 /** Read the user-scope `analysis` block with secrets masked for transport. */
 export async function readAnalysisSettings(env: HierarchyEnv, fs: JsonFs): Promise<AnalysisConfig> {
   return maskAnalysis(await readRawAnalysis(env, fs));
+}
+
+/**
+ * Resolve an extractor block submitted from the UI into one with its real secret,
+ * for a connection test. The form may send a masked `apiKey` (the user didn't
+ * retype it), so we merge over the stored config the same way a save does — the
+ * stored secret survives a masked value. Lets "Test connection" work before save.
+ */
+export async function resolveExtractorForTest(
+  env: HierarchyEnv,
+  fs: JsonFs,
+  incoming: ExtractorConfig,
+): Promise<ExtractorConfig> {
+  const existing = await readRawAnalysis(env, fs);
+  return mergeAnalysisConfig({ extractor: incoming }, existing).extractor ?? {};
 }
 
 /**

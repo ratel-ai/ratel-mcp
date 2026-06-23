@@ -29,6 +29,7 @@ import {
   putAnalysisSettings,
   runIntentsRoute,
   startAnalysisRun,
+  testExtractorRoute,
 } from "./intents-routes.js";
 import {
   type ApiResponse,
@@ -263,6 +264,10 @@ async function route(
   if (method === "PUT" && path === "/api/analysis/settings") {
     const body = await readJsonBody(req);
     return putAnalysisSettings(ctx, body);
+  }
+  if (method === "POST" && path === "/api/analysis/extractor/test") {
+    const body = await readJsonBody(req);
+    return testExtractorRoute(ctx, body);
   }
   if (method === "GET" && path === "/api/skills/offer/jobs") {
     return listOfferJobsRoute(ctx);

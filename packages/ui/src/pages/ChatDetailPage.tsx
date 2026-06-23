@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ChevronUp, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRatelApp } from "@/App";
 import { Markdown } from "@/components/markdown";
 import {
@@ -60,6 +60,11 @@ export function ChatDetailPage(props: { sessionId: string }) {
   // visible while older turns are fetched in the background.
   const [loadingEarlier, setLoadingEarlier] = useState(false);
 
+  // The scrollable transcript area; we pin it to the newest message on first
+  // load (like a messaging app) but never fight the user's manual scrolling.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pinnedSessionRef = useRef<string | null>(null);
+
   const backPath = token ? `/chats?t=${encodeURIComponent(token)}` : "/chats";
   const goBack = () => {
     void navigate({ to: backPath } as never);
@@ -96,6 +101,18 @@ export function ChatDetailPage(props: { sessionId: string }) {
 
   const detail = state.status === "ready" ? state.data : null;
 
+  // On the first ready render for a session, jump to the newest message (bottom).
+  // We pin per-session so "Load earlier" (which prepends) and manual scrolling are
+  // left alone; switching sessions re-pins to the bottom.
+  useEffect(() => {
+    if (state.status !== "ready") return;
+    if (pinnedSessionRef.current === props.sessionId) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    pinnedSessionRef.current = props.sessionId;
+  }, [state.status, props.sessionId]);
+
   const loadEarlier = useCallback(async () => {
     if (!detail) return;
     const nextLimit = Math.min(limit + LOAD_STEP, detail.total);
@@ -115,43 +132,47 @@ export function ChatDetailPage(props: { sessionId: string }) {
   const groups = detail ? groupTurns(detail.turns) : [];
 
   return (
-    <main className="grid w-full gap-5 px-4 py-5 sm:px-6">
-      <PageHeader className="sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <PageHeaderContent>
-          <PageHeaderBackRow>
-            <Button onClick={goBack} size="sm" type="button" variant="ghost">
-              <ArrowLeft />
-              Chats
-            </Button>
-            <div className="flex items-center gap-1 sm:hidden">
-              <PageHeaderSidebarTrigger />
-            </div>
-          </PageHeaderBackRow>
-          <PageHeaderTitle className="mt-4 truncate text-2xl">
-            {detail?.title ?? props.sessionId}
-          </PageHeaderTitle>
-          <PageHeaderDescription className="mt-2 truncate">
-            {detail ? (
-              <>
-                {detail.host} · <span className="font-mono">{detail.sessionId}</span>
-                {detail.cwd ? ` · ${detail.cwd}` : ""}
-              </>
-            ) : (
-              props.sessionId
-            )}
-          </PageHeaderDescription>
-        </PageHeaderContent>
-        <PageHeaderActions className="hidden sm:flex">
-          <PageHeaderSidebarTrigger className="hidden sm:inline-flex" />
-        </PageHeaderActions>
-      </PageHeader>
+    // Fill the sidebar inset exactly so the transcript scrolls on its own (bottom
+    // pinned), instead of growing the whole page like a document.
+    <div className="absolute inset-0 flex flex-col">
+      <div className="shrink-0 px-4 pt-5 sm:px-6">
+        <PageHeader className="sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <PageHeaderContent>
+            <PageHeaderBackRow>
+              <Button onClick={goBack} size="sm" type="button" variant="ghost">
+                <ArrowLeft />
+                Chats
+              </Button>
+              <div className="flex items-center gap-1 sm:hidden">
+                <PageHeaderSidebarTrigger />
+              </div>
+            </PageHeaderBackRow>
+            <PageHeaderTitle className="mt-4 truncate text-2xl">
+              {detail?.title ?? props.sessionId}
+            </PageHeaderTitle>
+            <PageHeaderDescription className="mt-2 truncate">
+              {detail ? (
+                <>
+                  {detail.host} · <span className="font-mono">{detail.sessionId}</span>
+                  {detail.cwd ? ` · ${detail.cwd}` : ""}
+                </>
+              ) : (
+                props.sessionId
+              )}
+            </PageHeaderDescription>
+          </PageHeaderContent>
+          <PageHeaderActions className="hidden sm:flex">
+            <PageHeaderSidebarTrigger className="hidden sm:inline-flex" />
+          </PageHeaderActions>
+        </PageHeader>
+      </div>
 
       {state.status === "loading" && (
-        <p className="px-1 text-muted-foreground text-sm">Loading conversation…</p>
+        <p className="px-4 py-4 text-muted-foreground text-sm sm:px-6">Loading conversation…</p>
       )}
 
       {state.status === "error" && (
-        <div className="grid gap-3">
+        <div className="grid gap-3 px-4 py-4 sm:px-6">
           <p className="text-destructive text-sm">{state.message}</p>
           <div>
             <Button onClick={retry} size="sm" variant="outline">
@@ -162,32 +183,33 @@ export function ChatDetailPage(props: { sessionId: string }) {
       )}
 
       {detail && detail.turns.length === 0 && (
-        <p className="px-1 text-muted-foreground text-sm">No turns in this conversation.</p>
+        <p className="px-4 py-4 text-muted-foreground text-sm sm:px-6">
+          No turns in this conversation.
+        </p>
       )}
 
       {detail && detail.turns.length > 0 && (
-        <div className="grid max-w-3xl gap-4">
-          <p className="px-1 text-muted-foreground text-xs">
-            Showing last {detail.turns.length} of {detail.total} turn
-            {detail.total === 1 ? "" : "s"}
-          </p>
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+          <div className="flex w-full flex-col gap-4 pt-2">
+            {hasMore ? (
+              <div className="flex justify-center">
+                <Button
+                  disabled={loadingEarlier}
+                  onClick={() => void loadEarlier()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {loadingEarlier ? <Loader2 className="animate-spin" /> : <ChevronUp />}
+                  Load earlier ({olderCount} older)
+                </Button>
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground text-xs">
+                Start of conversation · {detail.total} turn{detail.total === 1 ? "" : "s"}
+              </p>
+            )}
 
-          {hasMore && (
-            <div className="flex justify-center">
-              <Button
-                disabled={loadingEarlier}
-                onClick={() => void loadEarlier()}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {loadingEarlier ? <Loader2 className="animate-spin" /> : <ChevronUp />}
-                Load earlier ({olderCount} older)
-              </Button>
-            </div>
-          )}
-
-          <div className="grid gap-4">
             {groups.map((group, index) => (
               <TurnGroupBlock
                 group={group}
@@ -200,7 +222,7 @@ export function ChatDetailPage(props: { sessionId: string }) {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 

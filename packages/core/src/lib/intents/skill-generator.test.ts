@@ -56,6 +56,46 @@ describe("buildSkillPrompt", () => {
     expect(prompt).toContain("api-design");
   });
 
+  it("mandates the structured SKILL.md section layout", () => {
+    const prompt = buildSkillPrompt(INTENT);
+    for (const heading of [
+      "## When to use",
+      "## Prerequisites",
+      "## Steps",
+      "## Constraints",
+      "## Verification",
+    ]) {
+      expect(prompt).toContain(heading);
+    }
+  });
+
+  it("spells out the quality bar: grounded, with a contract, procedure and constraints", () => {
+    const prompt = buildSkillPrompt(INTENT);
+    expect(prompt).toMatch(/GROUNDED/);
+    expect(prompt).toMatch(/CONTRACT/);
+    expect(prompt).toMatch(/PROCEDURE/);
+    expect(prompt).toMatch(/CONSTRAINTS/);
+    // Still forbids the generic filler that wrecks BM25 matching.
+    expect(prompt).toContain("'the user'");
+  });
+
+  it("requires safe, portable output (no secrets or machine-specific paths)", () => {
+    const prompt = buildSkillPrompt(INTENT);
+    expect(prompt).toMatch(/No secrets/i);
+    expect(prompt).toMatch(/absolute paths/i);
+  });
+
+  it("delimits supplied context with XML tags", () => {
+    const prompt = buildSkillPrompt(INTENT, {
+      evidences: ["ran `npm run build`"],
+      relatedIntents: ["add logout flow"],
+    });
+    expect(prompt).toContain("<evidence>");
+    expect(prompt).toContain("</evidence>");
+    expect(prompt).toContain("<related_requests>");
+    expect(prompt).toContain("<uncovered_request>");
+  });
+
   it("caps the number of evidence bullets", () => {
     const evidences = Array.from({ length: 50 }, (_, i) => `evidence number ${i}`);
     const prompt = buildSkillPrompt(INTENT, { evidences });

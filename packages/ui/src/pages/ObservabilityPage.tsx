@@ -183,58 +183,49 @@ function GlossaryItem(props: { term: string; children: ReactNode }) {
 }
 
 // Fixed chart height; width is measured at runtime so the viewBox maps 1:1 to
-// pixels (no aspect-ratio stretching → round markers, undistorted lines).
-const CHART_H = 180;
-const CHART_PAD = { top: 16, right: 16, bottom: 22, left: 30 };
-const GRID_LINES = 3;
+// pixels (no aspect-ratio stretching → crisp, undistorted bars).
+const CHART_H = 200;
+const CHART_PAD = { top: 14, right: 12, bottom: 14, left: 28 };
+// Cap the bar count so the chart stays readable; the rest is in the list below.
+const MAX_BARS = 24;
 
-interface ChartPoint {
-  key: string;
-  at: string;
-  totalIntents: number;
-  totalGaps: number;
-  x: number;
-  intentY: number;
-  gapY: number;
-}
-
+/**
+ * Per-run grouped bars (intents vs gaps), oldest→newest. A bar chart reads more
+ * honestly than a line for discrete runs - a run that found nothing is a clear
+ * empty slot rather than a dip in a connected line. Dependency-free inline SVG;
+ * recharts is intentionally avoided (it broke the dev bundle).
+ */
 function RunsChart(props: { runs: RunLogEntry[] }) {
   const [ref, bounds] = useMeasure();
   const width = Math.max(320, Math.round(bounds.width));
   const plotW = width - CHART_PAD.left - CHART_PAD.right;
   const plotH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
-
-  // Oldest-to-newest, capped to the last 30 runs. A dependency-free inline-SVG
-  // line chart - recharts is intentionally avoided (it broke the dev bundle).
-  const recent = [...props.runs].slice(0, 30).reverse();
-  const max = Math.max(1, ...recent.map((run) => Math.max(run.totalIntents, run.totalGaps)));
-
-  const points: ChartPoint[] = recent.map((run, index) => {
-    // One point centers in the plot; otherwise spread evenly left→right.
-    const x =
-      recent.length === 1
-        ? CHART_PAD.left + plotW / 2
-        : CHART_PAD.left + (plotW * index) / (recent.length - 1);
-    const yFor = (value: number) => CHART_PAD.top + plotH - (value / max) * plotH;
-    return {
-      key: run.runId,
-      at: run.at,
-      totalIntents: run.totalIntents,
-      totalGaps: run.totalGaps,
-      x,
-      intentY: yFor(run.totalIntents),
-      gapY: yFor(run.totalGaps),
-    };
-  });
-
-  const intentPath = toPath(points, (p) => p.intentY);
-  const gapPath = toPath(points, (p) => p.gapY);
   const baselineY = CHART_PAD.top + plotH;
 
+  const recent = [...props.runs].slice(0, MAX_BARS).reverse();
+  const max = Math.max(1, ...recent.map((run) => Math.max(run.totalIntents, run.totalGaps)));
+  const ticks = niceTicks(max);
+  const yFor = (value: number) => baselineY - (value / max) * plotH;
+
+  // One slot per run; two centered bars (intents, gaps) within each slot, widths
+  // capped so a single run doesn't render as two enormous blocks.
+  const slotW = recent.length > 0 ? plotW / recent.length : plotW;
+  const barGap = 2;
+  const barW = Math.max(3, Math.min(26, (slotW - barGap) / 2 - 3));
+  const groupW = barW * 2 + barGap;
+
   return (
-    <section className="rounded-md border border-border bg-card p-3">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <h2 className="font-medium text-sm">Intents &amp; gaps over time</h2>
+    <section className="rounded-md border border-border bg-card p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div>
+          <h2 className="font-medium text-sm">Intents &amp; gaps per run</h2>
+          <p className="mt-0.5 text-muted-foreground text-xs">
+            {recent.length === props.runs.length
+              ? `All ${recent.length} run${recent.length === 1 ? "" : "s"}`
+              : `Last ${recent.length} of ${props.runs.length} runs`}{" "}
+            · oldest to newest
+          </p>
+        </div>
         <div className="flex items-center gap-3 text-muted-foreground text-xs">
           <LegendSwatch color="var(--chart-1)" label="Intents" />
           <LegendSwatch color="var(--chart-2)" label="Gaps" />
@@ -243,99 +234,92 @@ function RunsChart(props: { runs: RunLogEntry[] }) {
       <div className="w-full" ref={ref}>
         {bounds.width > 0 && (
           <svg
-            aria-label="Intents and gaps per run over time"
+            aria-label="Intents and gaps per run"
             height={CHART_H}
             role="img"
             viewBox={`0 0 ${width} ${CHART_H}`}
             width={width}
           >
-            {/* Horizontal gridlines. */}
-            {Array.from({ length: GRID_LINES }, (_, i) => {
-              const y = CHART_PAD.top + (plotH * i) / (GRID_LINES - 1);
+            {/* Gridlines + y-axis labels. */}
+            {ticks.map((tick) => {
+              const y = yFor(tick);
               return (
-                <line
-                  className="stroke-border"
-                  key={`grid-${y}`}
-                  opacity={i === GRID_LINES - 1 ? 0.9 : 0.4}
-                  strokeWidth={1}
-                  x1={CHART_PAD.left}
-                  x2={width - CHART_PAD.right}
-                  y1={y}
-                  y2={y}
-                />
+                <g key={tick}>
+                  <line
+                    className="stroke-border"
+                    opacity={tick === 0 ? 0.9 : 0.35}
+                    strokeWidth={1}
+                    x1={CHART_PAD.left}
+                    x2={width - CHART_PAD.right}
+                    y1={y}
+                    y2={y}
+                  />
+                  <text
+                    className="fill-muted-foreground"
+                    fontSize={10}
+                    textAnchor="end"
+                    x={CHART_PAD.left - 6}
+                    y={y + 3}
+                  >
+                    {tick}
+                  </text>
+                </g>
               );
             })}
 
-            {/* Y-axis labels (max + 0). */}
-            <text
-              className="fill-muted-foreground"
-              fontSize={10}
-              textAnchor="end"
-              x={CHART_PAD.left - 6}
-              y={CHART_PAD.top + 3}
-            >
-              {max}
-            </text>
-            <text
-              className="fill-muted-foreground"
-              fontSize={10}
-              textAnchor="end"
-              x={CHART_PAD.left - 6}
-              y={baselineY + 3}
-            >
-              0
-            </text>
-
-            {/* Series lines. */}
-            <path
-              d={gapPath}
-              fill="none"
-              stroke="var(--chart-2)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-            />
-            <path
-              d={intentPath}
-              fill="none"
-              stroke="var(--chart-1)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-            />
-
-            {/* Markers with tooltips. */}
-            {points.map((p) => (
-              <g key={p.key}>
-                <circle cx={p.x} cy={p.gapY} fill="var(--chart-2)" r={3}>
-                  <title>{markerTitle(p)}</title>
-                </circle>
-                <circle cx={p.x} cy={p.intentY} fill="var(--chart-1)" r={3}>
-                  <title>{markerTitle(p)}</title>
-                </circle>
-              </g>
-            ))}
+            {/* Grouped bars per run. */}
+            {recent.map((run, index) => {
+              const slotX = CHART_PAD.left + slotW * index + (slotW - groupW) / 2;
+              const intentY = yFor(run.totalIntents);
+              const gapY = yFor(run.totalGaps);
+              const radius = Math.min(3, barW / 2);
+              return (
+                <g key={run.runId}>
+                  <rect
+                    fill="var(--chart-1)"
+                    height={Math.max(0, baselineY - intentY)}
+                    rx={radius}
+                    width={barW}
+                    x={slotX}
+                    y={intentY}
+                  >
+                    <title>{barTitle(run, "intents")}</title>
+                  </rect>
+                  <rect
+                    fill="var(--chart-2)"
+                    height={Math.max(0, baselineY - gapY)}
+                    rx={radius}
+                    width={barW}
+                    x={slotX + barW + barGap}
+                    y={gapY}
+                  >
+                    <title>{barTitle(run, "gaps")}</title>
+                  </rect>
+                </g>
+              );
+            })}
           </svg>
         )}
       </div>
+      {recent.length > 1 && (
+        <div className="mt-1 flex justify-between px-1 text-[10px] text-muted-foreground/70">
+          <span>{shortDateTime(recent[0].at)}</span>
+          <span>{shortDateTime(recent[recent.length - 1].at)}</span>
+        </div>
+      )}
     </section>
   );
 }
 
-/** Build an SVG polyline `d` string; falls back to a tiny dot for a single point. */
-function toPath(points: ChartPoint[], y: (p: ChartPoint) => number): string {
-  if (points.length === 0) return "";
-  if (points.length === 1) {
-    const p = points[0];
-    return `M ${p.x} ${y(p)} L ${p.x} ${y(p)}`;
-  }
-  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${y(p)}`).join(" ");
+/** Up to three integer y-axis ticks (0, midpoint, max), de-duplicated. */
+function niceTicks(max: number): number[] {
+  return [...new Set([0, Math.round(max / 2), max])].sort((a, b) => a - b);
 }
 
-function markerTitle(p: ChartPoint): string {
-  const intents = `${p.totalIntents} intent${p.totalIntents === 1 ? "" : "s"}`;
-  const gaps = `${p.totalGaps} gap${p.totalGaps === 1 ? "" : "s"}`;
-  return `${shortDateTime(p.at)} · ${intents} / ${gaps}`;
+function barTitle(run: RunLogEntry, kind: "intents" | "gaps"): string {
+  const value = kind === "intents" ? run.totalIntents : run.totalGaps;
+  const noun = kind === "intents" ? "intent" : "gap";
+  return `${shortDateTime(run.at)} · ${value} ${noun}${value === 1 ? "" : "s"}`;
 }
 
 function LegendSwatch(props: { color: string; label: string }) {

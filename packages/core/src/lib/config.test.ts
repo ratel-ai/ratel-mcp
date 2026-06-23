@@ -366,6 +366,40 @@ describe("parseConfig analysis", () => {
     ).toThrow(/analysis\.extractor\.provider/);
   });
 
+  it("parses basic-auth extractor fields (authScheme + username)", () => {
+    const config = parseConfig({
+      mcpServers: {},
+      analysis: {
+        extractor: {
+          provider: "cloud",
+          endpoint: "https://extractor.example/api",
+          authScheme: "basic",
+          username: "alice",
+          apiKey: "s3cret",
+        },
+      },
+    });
+    expect(config.analysis?.extractor).toEqual({
+      provider: "cloud",
+      endpoint: "https://extractor.example/api",
+      authScheme: "basic",
+      username: "alice",
+      apiKey: "s3cret",
+    });
+  });
+
+  it("rejects an unknown extractor authScheme", () => {
+    expect(() =>
+      parseConfig({ mcpServers: {}, analysis: { extractor: { authScheme: "oauth" } } }),
+    ).toThrow(/analysis\.extractor\.authScheme/);
+  });
+
+  it("rejects a non-string extractor username", () => {
+    expect(() =>
+      parseConfig({ mcpServers: {}, analysis: { extractor: { username: 42 } } }),
+    ).toThrow(/analysis\.extractor\.username/);
+  });
+
   it("rejects a non-integer everyNMessages", () => {
     expect(() =>
       parseConfig({ mcpServers: {}, analysis: { cadence: { everyNMessages: 2.5 } } }),

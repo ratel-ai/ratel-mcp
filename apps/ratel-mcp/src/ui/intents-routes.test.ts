@@ -29,6 +29,7 @@ import {
   offerStatusRoute,
   putAnalysisSettings,
   runIntentsRoute,
+  testExtractorRoute,
 } from "./intents-routes.js";
 
 let home: string;
@@ -619,5 +620,68 @@ describe("deleteChatRoute", () => {
   it("tolerates deleting an unknown session", async () => {
     const del = await deleteChatRoute(ctx, "ghost");
     expect(del.body).toMatchObject({ deleted: "ghost" });
+  });
+});
+
+describe("testExtractorRoute", () => {
+  it("probes /health with the stored secret resolved from a masked apiKey", async () => {
+    // Seed a saved extractor with a real Basic-auth password.
+    await putAnalysisSettings(ctx, {
+      analysis: {
+        extractor: {
+          provider: "cloud",
+          endpoint: "https://extractor.example/api",
+          authScheme: "basic",
+          username: "alice",
+          apiKey: "s3cret",
+        },
+      },
+    });
+
+    const calls: Array<{ url: string; auth: string | null }> = [];
+    const fakeFetch = (async (url: string | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(url),
+        auth: new Headers(init?.headers).get("Authorization"),
+      });
+      return new Response(JSON.stringify({ status: "ok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    // The UI re-sends the masked apiKey (the user didn't retype the password).
+    const res = await testExtractorRoute(
+      ctx,
+      {
+        extractor: {
+          provider: "cloud",
+          endpoint: "https://extractor.example/api",
+          authScheme: "basic",
+          username: "alice",
+          apiKey: SECRET_MASK,
+        },
+      },
+      { fetch: fakeFetch },
+    );
+
+    expect(res.body).toEqual({ ok: true, status: 200, detail: "ok" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://extractor.example/api/health");
+    // alice:s3cret → YWxpY2U6czNjcmV0 (the stored secret, not the mask).
+    expect(calls[0].auth).toBe("Basic YWxpY2U6czNjcmV0");
+  });
+
+  it("returns a failure verdict (not an error) when the endpoint is unreachable", async () => {
+    const fakeFetch = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+    const res = await testExtractorRoute(
+      ctx,
+      { extractor: { endpoint: "http://127.0.0.1:9", provider: "http" } },
+      { fetch: fakeFetch },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: false });
   });
 });

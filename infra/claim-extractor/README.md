@@ -10,18 +10,29 @@ on a GPU box, or behind a cloud endpoint. Pick a deployment, point Ratel at it.
 
 ## The contract
 
+Ratel speaks the **orbitals claim-extractor** contract, so a local sidecar and the
+hosted Principled endpoint are interchangeable — switching is just the `endpoint`
+URL (and auth):
+
 ```
-POST {endpoint}/v1/extract
-  { "model"?: str,
-    "messages": [{ "role": "user"|"assistant", "content": str }],
-    "service_description"?: object }
+POST {endpoint}/orbitals/claim-extractor/extract
+  { "conversation": [{ "role": "user"|"assistant", "content": str }],
+    "model"?: str,
+    "skip_evidences"?: bool,
+    "ai_service_description"?: object }
 ->
-  { "claims":  [{ "subtype": "factoid"|"capability"|"user_assertion"|"unverifiable",
-                  "content": str, "evidences"?: [str] }],
-    "intents": [{ "content": str, "evidences"?: [str] }] }
+  { "extractions": {
+      "claims":  [{ "subtype": "factoid"|"capability"|"user_assertion"|"unverifiable",
+                    "content": str, "evidences"?: [str] }],
+      "intents": [{ "content": str, "evidences"?: [str] }] },
+    "model": str, "usage": {…}, "time_taken": float }
 ```
 
-`GET /health` returns `{ status, model, backend }`.
+`GET /health` returns `{ status, … }`. The legacy `POST /v1/extract` route (body
+`messages`, an unwrapped `{ claims, intents }` response) is still served for older
+clients. `skip_evidences`/`model` are honored by the hosted endpoint; the sidecar
+serves the single model + settings it was launched with and ignores per-request
+overrides.
 
 ## Deployments
 
@@ -45,14 +56,21 @@ docker compose -f infra/claim-extractor/docker-compose.yml up --build
 
 Needs the NVIDIA Container Toolkit. The image uses the **vLLM** backend.
 
-### 3. Remote / cloud endpoint
+### 3. Remote / hosted endpoint
 
-Run either of the above on a remote host (or a managed service) and point Ratel at
-its URL with an `apiKey`. Nothing else changes.
+Run either of the above on a remote host, or point Ratel at the hosted Principled
+endpoint. Only the URL and auth change — the contract is identical. Auth is either
+`bearer` (a token) or `basic` (username + password):
+
+```bash
+curl https://orbitals-preview.principled.app/health \
+  -H 'authorization: Basic <base64(username:password)>'
+```
 
 ## Point Ratel at it
 
-In the UI: **Intents → Settings → Extractor**. Or in `~/.ratel/config.json`:
+In the UI: **Intents → Settings → Extractor** (use **Test connection** to verify
+the endpoint + credentials against `/health`). Or in `~/.ratel/config.json`:
 
 ```json
 {
@@ -60,16 +78,36 @@ In the UI: **Intents → Settings → Extractor**. Or in `~/.ratel/config.json`:
     "enabled": true,
     "extractor": {
       "provider": "http",
-      "endpoint": "http://127.0.0.1:8723",
-      "model": "claim-extractor-4B"
+      "endpoint": "http://127.0.0.1:8723"
     }
   }
 }
 ```
 
-For a remote/cloud endpoint, set `"provider": "cloud"` and add `"apiKey": "…"` (the
-key is sent as a bearer token and stored masked in the UI). With no endpoint
-configured, Ratel falls back to the model-free `naive` extractor.
+A local sidecar and a hosted endpoint use the **same** `http` provider — only the
+URL and auth differ. A local sidecar needs no auth; a hosted endpoint adds the auth
+fields — `basic` (with `username` + the password in `apiKey`) or `bearer` (token in
+`apiKey`):
+
+```json
+{
+  "analysis": {
+    "extractor": {
+      "provider": "http",
+      "endpoint": "https://orbitals-preview.principled.app",
+      "authScheme": "basic",
+      "username": "ratel",
+      "apiKey": "<password>"
+    }
+  }
+}
+```
+
+`apiKey` is the bearer token **or** the basic-auth password; it's stored masked in
+the UI (`username` is not secret). `authScheme` is optional — it defaults to `basic`
+when a `username` is set, else `bearer`. (An older `"provider": "cloud"` is still
+accepted and behaves identically.) With no endpoint configured, Ratel falls back to
+the model-free `naive` extractor.
 
 ## Mock mode
 

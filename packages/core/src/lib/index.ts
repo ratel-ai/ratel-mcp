@@ -3,6 +3,7 @@ export type {
   CadenceConfig,
   ChatSourceKind,
   CoverageConfig,
+  ExtractorAuthScheme,
   ExtractorConfig,
   ExtractorProvider,
   RatelConfig,

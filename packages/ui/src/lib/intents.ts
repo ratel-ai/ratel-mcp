@@ -62,6 +62,7 @@ export interface RunKickoff {
 
 export type ChatSourceKind = "hooks" | "api" | "cloud";
 export type ExtractorProvider = "http" | "naive" | "cloud";
+export type ExtractorAuthScheme = "bearer" | "basic";
 export type SkillGenProvider = "auto" | "anthropic-api" | "claude-cli";
 
 export interface AnalysisSettings {
@@ -70,6 +71,11 @@ export interface AnalysisSettings {
   extractor?: {
     provider?: ExtractorProvider;
     endpoint?: string;
+    /** How the endpoint is authenticated. Omitted = auto (basic if username set, else bearer). */
+    authScheme?: ExtractorAuthScheme;
+    /** Username for basic auth (not secret). */
+    username?: string;
+    /** Bearer token or basic-auth password. Secret — echoed back masked. */
     apiKey?: string;
     model?: string;
   };
@@ -227,6 +233,28 @@ export function saveAnalysisSettings(
   return request<AnalysisSettingsResponse>("/api/analysis/settings", {
     method: "PUT",
     body: { analysis },
+  });
+}
+
+/** Verdict from probing the extractor endpoint's `/health`. */
+export interface ExtractorHealth {
+  ok: boolean;
+  status?: number;
+  detail?: string;
+}
+
+/**
+ * Probe the extractor endpoint's `/health` with the given (possibly unsaved)
+ * extractor settings. A masked apiKey resolves to the stored secret server-side,
+ * so the password need not be retyped to test a saved endpoint.
+ */
+export function testExtractor(
+  request: Request,
+  extractor: AnalysisSettings["extractor"],
+): Promise<ExtractorHealth> {
+  return request<ExtractorHealth>("/api/analysis/extractor/test", {
+    method: "POST",
+    body: { extractor: extractor ?? {} },
   });
 }
 

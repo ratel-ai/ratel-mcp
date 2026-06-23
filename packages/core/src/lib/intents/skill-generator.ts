@@ -15,48 +15,91 @@ const DEFAULT_SKILLGEN_TIMEOUT_MS = 120_000;
 /**
  * Build the shared instruction that asks a Claude model to author a SKILL.md
  * draft for an uncovered intent, returned as a single JSON object.
+ *
+ * The prompt does the quality work itself: it spells out a quality bar (grounded,
+ * specific, with a contract / environment / procedure / constraints / safety) and
+ * mandates a fixed SKILL.md section structure, so the model returns a high-signal
+ * skill rather than generic boilerplate. Context is delimited with XML tags per
+ * Anthropic's prompting guidance, and the output contract stays a single JSON
+ * object so {@link parseSkillDraft} and the downstream create-skill route are
+ * unchanged.
  */
 export function buildSkillPrompt(intent: Intent, context?: SkillGenContext): string {
-  const existing = context?.existingSkillIds?.length
-    ? `\nExisting skills (do not duplicate these): ${context.existingSkillIds.join(", ")}.`
-    : "";
-  const evidenceSection = buildBulletSection(
-    "What the user actually did/asked (ground the skill in THIS, not a generic guess):",
+  const existingSection = context?.existingSkillIds?.length
+    ? [
+        "<existing_skills>",
+        `Do not duplicate these existing skills: ${context.existingSkillIds.join(", ")}.`,
+        "</existing_skills>",
+        "",
+      ]
+    : [];
+  const evidenceSection = buildTaggedSection(
+    "evidence",
+    "What the user actually did/asked. Ground the skill in THIS, not a generic guess:",
     context?.evidences,
   );
-  const relatedSection = buildBulletSection(
+  const relatedSection = buildTaggedSection(
+    "related_requests",
     "Related things the user repeatedly asks for (the skill may cover these too):",
     context?.relatedIntents,
   );
   return [
-    "You are authoring a reusable Agent Skill for the Ratel MCP gateway.",
-    `The user repeatedly tries to do this, but no skill covers it: "${intent.content}".${existing}`,
+    "You are an expert author of reusable Agent Skills for the Ratel MCP gateway.",
+    "A skill is a SKILL.md file whose `description` and `tags` are matched (BM25) against",
+    "future user requests; once matched, its body instructs an AI agent how to do the task.",
+    "Author ONE high-quality skill for the recurring request that no existing skill covers.",
     "",
-    "Make the skill SPECIFIC to this exact task. The description and tags are matched",
-    "(BM25) against future requests, so use precise, distinctive wording — concrete",
-    "nouns/verbs from this task — and AVOID generic filler ('the user', 'assistant',",
-    "'help', 'task', 'do this') that would make it match unrelated intents.",
+    "<uncovered_request>",
+    intent.content,
+    "</uncovered_request>",
+    "",
+    ...existingSection,
     ...evidenceSection,
     ...relatedSection,
+    "Author the skill to satisfy ALL of these requirements:",
     "",
-    "The skill MUST reflect the real workflow shown above, not a generic best-practice guess.",
+    "1. GROUNDED. Build the skill from the evidence above: reuse the concrete nouns, verbs,",
+    "   tools, file names, and commands the user actually used. Do NOT invent details or pad",
+    "   with generic advice. If the evidence is thin, keep the skill narrow instead of guessing.",
+    "2. SPECIFIC AND MATCHABLE. The description states in one sentence exactly what the skill",
+    "   does and precisely WHEN to use it, using distinctive wording from this task. AVOID",
+    "   generic filler ('the user', 'assistant', 'help', 'task', 'do this') that would make it",
+    "   match unrelated requests.",
+    "3. CONTRACT. State the expected inputs and outputs, and how to verify success.",
+    "4. ENVIRONMENT. List any prerequisites, dependencies, or setup needed before the steps",
+    "   (omit only if there are genuinely none).",
+    "5. PROCEDURE. Give concrete, ordered, numbered steps that carry out the task end to end,",
+    "   including how to handle the obvious failure and edge cases.",
+    "6. CONSTRAINTS. Call out the rules and limits that must be respected (the must / never /",
+    "   only conditions implied by the task).",
+    "7. SAFE AND PORTABLE. No secrets, API keys, or tokens. No machine-specific absolute paths",
+    "   or one-off literal values; parameterize them. Be concise, with no filler sections.",
+    "",
+    "Structure the `body` as Markdown with these sections, in this order (omit a section ONLY",
+    "if it genuinely does not apply):",
+    "",
+    "## When to use",
+    "## Prerequisites",
+    "## Steps",
+    "## Constraints",
+    "## Verification",
     "",
     "Respond with ONLY a single JSON object, no prose, no markdown fences:",
     "{",
     '  "name": "<kebab-case-id, specific to the task>",',
     '  "description": "<one sentence: what it does and exactly when to use it>",',
     '  "tags": ["<distinctive trigger phrase>", "..."],',
-    '  "body": "<Markdown instructions for SKILL.md, excluding frontmatter>"',
+    '  "body": "<the structured Markdown body described above, excluding YAML frontmatter>"',
     "}",
   ].join("\n");
 }
 
 /**
- * Render a labelled, bullet-listed prompt section from real context, or nothing
- * when there is no content. Bounds both the count and per-line length so the
- * prompt stays well-sized regardless of how noisy the captured evidence is.
+ * Render an XML-tagged, bullet-listed context block from real evidence, or
+ * nothing when there is no content. Bounds both the count and per-line length so
+ * the prompt stays well-sized regardless of how noisy the captured evidence is.
  */
-function buildBulletSection(label: string, items?: string[]): string[] {
+function buildTaggedSection(tag: string, label: string, items?: string[]): string[] {
   const bullets = (items ?? [])
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
@@ -67,7 +110,7 @@ function buildBulletSection(label: string, items?: string[]): string[] {
         : `- ${item}`,
     );
   if (bullets.length === 0) return [];
-  return ["", label, ...bullets];
+  return [`<${tag}>`, label, ...bullets, `</${tag}>`, ""];
 }
 
 /** Parse a model response into a validated {@link SkillDraft}, tolerating fences/prose. */

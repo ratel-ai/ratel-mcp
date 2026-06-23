@@ -2,7 +2,9 @@ import { rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   type AnalysisConfig,
+  checkExtractorHealth,
   createSkillGenerator,
+  type ExtractorConfig,
   emptyIndex,
   HookChatSource,
   intentsPaths,
@@ -32,7 +34,12 @@ import {
 } from "../intents/context.js";
 import { recomputeIntentCoverage } from "../intents/coverage.js";
 import { DEFAULT_EVERY_N_MESSAGES, runAnalysis } from "../intents/runner.js";
-import { readAnalysisSettings, SECRET_MASK, writeAnalysisSettings } from "./analysis-settings.js";
+import {
+  readAnalysisSettings,
+  resolveExtractorForTest,
+  SECRET_MASK,
+  writeAnalysisSettings,
+} from "./analysis-settings.js";
 import type { ApiResponse } from "./routes.js";
 
 function ok(body: unknown): ApiResponse {
@@ -292,6 +299,24 @@ export async function putAnalysisSettings(
   // Coverage thresholds may have changed — re-evaluate so the change shows now.
   await recomputeIntentCoverage(ctx.env, ctx.fs).catch(() => undefined);
   return ok({ analysis: saved, secretMask: SECRET_MASK });
+}
+
+/**
+ * POST /api/analysis/extractor/test — probe the configured extractor endpoint's
+ * `GET /health` (server-side, so the secret never reaches the browser and there's
+ * no CORS hop). Accepts the in-progress form's extractor block; a masked apiKey
+ * resolves to the stored secret, so the test works before the settings are saved.
+ * `deps.fetch` is an injection seam for tests. Always returns 200 with an
+ * `{ ok, status?, detail? }` verdict — a failed probe is a result, not an error.
+ */
+export async function testExtractorRoute(
+  ctx: HandlerCtx,
+  body: { extractor?: unknown },
+  deps: { fetch?: typeof fetch } = {},
+): Promise<ApiResponse> {
+  const incoming = (body.extractor ?? {}) as ExtractorConfig;
+  const resolved = await resolveExtractorForTest(ctx.env, ctx.fs, incoming);
+  return ok(await checkExtractorHealth(resolved, deps));
 }
 
 /**

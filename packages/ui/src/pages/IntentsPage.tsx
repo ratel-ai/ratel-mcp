@@ -1,9 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   Activity,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Cog,
+  Eye,
+  EyeOff,
   MessagesSquare,
   Play,
   RefreshCw,
@@ -11,8 +14,9 @@ import {
   Sparkles,
   Target,
   Trash2,
+  XCircle,
 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { chatPath, skillPath, useRatelApp } from "@/App";
 import { Markdown } from "@/components/markdown";
 import {
@@ -58,6 +62,7 @@ import {
   clearIntents,
   clearOfferJob,
   deleteIntent,
+  type ExtractorHealth,
   estimateGenMs,
   fetchAnalysisSettings,
   fetchChats,
@@ -74,6 +79,7 @@ import {
   type SkillDraft,
   saveAnalysisSettings,
   skillGenModelOptions,
+  testExtractor,
 } from "@/lib/intents";
 import { ObservabilityPanel } from "@/pages/ObservabilityPage";
 
@@ -1105,17 +1111,76 @@ function AnalysisSettingsDialog() {
   // Numeric fields are kept as raw strings so partial input (e.g. "1.") types cleanly.
   const [nums, setNums] = useState<Record<string, string>>({});
 
+  // Connection-test state for the extractor endpoint (the "Test connection" button).
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ExtractorHealth | null>(null);
+
+  // Secrets are never sent to the browser — the server returns a mask sentinel.
+  // We blank those fields (so the native reveal can't expose the sentinel) and
+  // remember which were saved, re-injecting the sentinel on submit for a field the
+  // user left untouched so a no-op save preserves the stored secret.
+  const [savedSecrets, setSavedSecrets] = useState({ extractor: false, skillGen: false });
+  const [secretTouched, setSecretTouched] = useState({ extractor: false, skillGen: false });
+
   const update = (patch: AnalysisSettings) => setForm((prev) => ({ ...prev, ...patch }));
   const setNum = (key: string, value: string) => setNums((n) => ({ ...n, [key]: value }));
 
+  // Editing the extractor invalidates any prior test result (it may now be stale).
+  const updateExtractor = (patch: Partial<NonNullable<AnalysisSettings["extractor"]>>) => {
+    setTestResult(null);
+    setForm((prev) => ({ ...prev, extractor: { ...prev.extractor, ...patch } }));
+  };
+
+  // Re-inject the mask sentinel for a saved secret the user didn't touch, so a
+  // no-op save/test preserves the stored value (the server swaps the sentinel back
+  // for the real secret). A touched-but-blank field is left blank → clears it.
+  const withPreservedSecrets = (f: AnalysisSettings): AnalysisSettings => {
+    const out: AnalysisSettings = { ...f };
+    if (savedSecrets.extractor && !secretTouched.extractor && !f.extractor?.apiKey) {
+      out.extractor = { ...f.extractor, apiKey: secretMask };
+    }
+    if (savedSecrets.skillGen && !secretTouched.skillGen && !f.skillGen?.apiKey) {
+      out.skillGen = { ...f.skillGen, apiKey: secretMask };
+    }
+    return out;
+  };
+
+  const runTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      setTestResult(await testExtractor(request, withPreservedSecrets(form).extractor));
+    } catch (err) {
+      setTestResult({ ok: false, detail: err instanceof Error ? err.message : "Test failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const onOpenChange = async (next: boolean) => {
     setOpen(next);
+    setTestResult(null);
+    setSecretTouched({ extractor: false, skillGen: false });
     if (next) {
       try {
         const res = await fetchAnalysisSettings(request);
         const a = res.analysis ?? {};
-        setForm(a);
+        // A saved secret arrives as the mask sentinel; blank the field but remember
+        // it's saved (shown via a "saved" placeholder), so the reveal button can't
+        // expose the sentinel and a no-op save still preserves the real value.
+        const exSaved = Boolean(a.extractor) && a.extractor?.apiKey === res.secretMask;
+        const sgSaved = Boolean(a.skillGen) && a.skillGen?.apiKey === res.secretMask;
+        setForm({
+          ...a,
+          ...(a.extractor && {
+            extractor: { ...a.extractor, apiKey: exSaved ? "" : a.extractor.apiKey },
+          }),
+          ...(a.skillGen && {
+            skillGen: { ...a.skillGen, apiKey: sgSaved ? "" : a.skillGen.apiKey },
+          }),
+        });
         setSecretMask(res.secretMask);
+        setSavedSecrets({ extractor: exSaved, skillGen: sgSaved });
         setNums({
           everyNMessages: numToStr(a.cadence?.everyNMessages),
           recentHours: numToStr(a.cadence?.recentHours),
@@ -1125,12 +1190,13 @@ function AnalysisSettingsDialog() {
         });
       } catch {
         setForm({});
+        setSavedSecrets({ extractor: false, skillGen: false });
       }
     }
   };
 
   const save = async () => {
-    const next: AnalysisSettings = {
+    const next: AnalysisSettings = withPreservedSecrets({
       ...form,
       cadence: {
         ...form.cadence,
@@ -1143,17 +1209,34 @@ function AnalysisSettingsDialog() {
         relativeRatio: floatOrUndefined(nums.relativeRatio),
         maxSkills: numberOrUndefined(nums.maxSkills),
       },
-    };
+    });
     const ok = await runAction("Saved analysis settings", () =>
       saveAnalysisSettings(request, next),
     );
     if (ok) setOpen(false);
   };
 
+  // Editing a secret field marks it touched (so we don't re-inject the sentinel)
+  // and clears any stale test result.
+  const setExtractorKey = (value: string) => {
+    setSecretTouched((s) => ({ ...s, extractor: true }));
+    updateExtractor({ apiKey: value });
+  };
+  const setSkillGenKey = (value: string) => {
+    setSecretTouched((s) => ({ ...s, skillGen: true }));
+    update({ skillGen: { ...form.skillGen, apiKey: value } });
+  };
+
   const cadence = form.cadence ?? {};
   const extractor = form.extractor ?? {};
   const skillGen = form.skillGen ?? {};
   const extractorProvider = extractor.provider ?? "naive";
+  // The dropdown offers just "http" (any HTTP endpoint) and "naive"; a legacy
+  // "cloud" config still behaves like http, so it maps to the http option here.
+  const providerValue = extractorProvider === "naive" ? "naive" : "http";
+  // Default to bearer (matches the legacy apiKey→Bearer behavior); switch to basic
+  // for the hosted endpoint. A blank credential = no auth (a local sidecar needs none).
+  const authScheme = extractor.authScheme ?? (extractor.username ? "basic" : "bearer");
   const skillGenProvider = skillGen.provider ?? "auto";
 
   return (
@@ -1236,22 +1319,19 @@ function AnalysisSettingsDialog() {
 
           <SettingsSection
             title="Extractor"
-            hint="The model that turns chat into claims + intents."
+            hint="Turns chat into claims + intents. A local sidecar and a hosted endpoint speak the same contract, so switching is just the URL (and auth)."
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Provider">
                 <Select
-                  onValueChange={(v) =>
-                    update({ extractor: { ...extractor, provider: v as never } })
-                  }
-                  value={extractorProvider}
+                  onValueChange={(v) => updateExtractor({ provider: v as never })}
+                  value={providerValue}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="http">HTTP endpoint (sidecar / remote)</SelectItem>
-                    <SelectItem value="cloud">Cloud</SelectItem>
+                    <SelectItem value="http">HTTP endpoint</SelectItem>
                     <SelectItem value="naive">Naive (no model)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1260,47 +1340,91 @@ function AnalysisSettingsDialog() {
                 <Field htmlFor="ex-endpoint" label="Endpoint URL">
                   <Input
                     id="ex-endpoint"
-                    onChange={(e) =>
-                      update({ extractor: { ...extractor, endpoint: e.target.value } })
-                    }
+                    onChange={(e) => updateExtractor({ endpoint: e.target.value })}
                     placeholder="http://127.0.0.1:8723"
                     value={extractor.endpoint ?? ""}
                   />
                 </Field>
               )}
-              {/* Model + key only matter for a cloud endpoint that serves multiple models;
-                  the local sidecar serves whatever it was launched with and ignores them. */}
-              {extractorProvider === "cloud" && (
-                <>
-                  <Field htmlFor="ex-model" label="Model">
-                    <Input
-                      id="ex-model"
-                      onChange={(e) =>
-                        update({ extractor: { ...extractor, model: e.target.value } })
-                      }
-                      placeholder="claim-extractor-4B"
-                      value={extractor.model ?? ""}
-                    />
-                  </Field>
-                  <Field htmlFor="ex-key" label="API key">
-                    <Input
-                      id="ex-key"
-                      onChange={(e) =>
-                        update({ extractor: { ...extractor, apiKey: e.target.value } })
-                      }
-                      placeholder={secretMask ? "•••• (saved)" : "required for cloud"}
-                      type="password"
-                      value={extractor.apiKey ?? ""}
-                    />
-                  </Field>
-                </>
-              )}
             </div>
-            {extractorProvider === "http" && (
+
+            {extractorProvider !== "naive" && (
+              <>
+                <Field label="Authentication">
+                  <Select
+                    onValueChange={(v) => updateExtractor({ authScheme: v as "bearer" | "basic" })}
+                    value={authScheme}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">Basic auth</SelectItem>
+                      <SelectItem value="bearer">Bearer token</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {authScheme === "basic" && (
+                  <Field htmlFor="ex-user" label="Username">
+                    <Input
+                      autoComplete="off"
+                      id="ex-user"
+                      onChange={(e) => updateExtractor({ username: e.target.value })}
+                      placeholder="e.g. ratel"
+                      value={extractor.username ?? ""}
+                    />
+                  </Field>
+                )}
+                <Field htmlFor="ex-key" label={authScheme === "basic" ? "Password" : "API token"}>
+                  <PasswordInput
+                    id="ex-key"
+                    onChange={(e) => setExtractorKey(e.target.value)}
+                    placeholder={
+                      savedSecrets.extractor
+                        ? "•••• saved (type to replace)"
+                        : "Leave blank for a local sidecar (no auth)"
+                    }
+                    value={extractor.apiKey ?? ""}
+                  />
+                </Field>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    disabled={testing || !extractor.endpoint}
+                    onClick={() => void runTest()}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {testing ? <Spinner /> : null}
+                    Test connection
+                  </Button>
+                  {testResult ? (
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs ${
+                        testResult.ok
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-destructive"
+                      }`}
+                    >
+                      {testResult.ok ? (
+                        <CheckCircle2 className="size-4" />
+                      ) : (
+                        <XCircle className="size-4" />
+                      )}
+                      {testResult.ok ? "Connected" : "Failed"}
+                      {testResult.detail ? (
+                        <span className="text-muted-foreground">- {testResult.detail}</span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            )}
+            {extractorProvider !== "naive" && (
               <p className="px-1 text-muted-foreground text-xs">
-                The sidecar serves whichever model it was started with - set it in the sidecar's{" "}
-                <code className="font-mono">settings.json</code> (or{" "}
-                <code className="font-mono">CLAIM_EXTRACTOR_MODEL</code>), not here.
+                Local sidecar or hosted endpoint - same contract, just the URL. A local sidecar
+                needs no auth (leave the credential blank); a hosted endpoint needs Basic or Bearer
+                auth. Each endpoint serves its own model, so there's nothing to pick here.
               </p>
             )}
             {extractorProvider === "naive" && (
@@ -1365,17 +1489,16 @@ function AnalysisSettingsDialog() {
               </Field>
               {skillGenProvider !== "claude-cli" && (
                 <Field htmlFor="sg-key" label="Anthropic API key">
-                  <Input
+                  <PasswordInput
                     id="sg-key"
-                    onChange={(e) => update({ skillGen: { ...skillGen, apiKey: e.target.value } })}
+                    onChange={(e) => setSkillGenKey(e.target.value)}
                     placeholder={
-                      secretMask
-                        ? "•••• (saved)"
+                      savedSecrets.skillGen
+                        ? "•••• saved (type to replace)"
                         : skillGenProvider === "auto"
                           ? "optional"
                           : "required"
                     }
-                    type="password"
                     value={skillGen.apiKey ?? ""}
                   />
                 </Field>
@@ -1443,6 +1566,39 @@ function Field(props: { label: string; htmlFor?: string; children: ReactNode }) 
     <div className="grid min-w-0 gap-1.5">
       <Label htmlFor={props.htmlFor}>{props.label}</Label>
       {props.children}
+    </div>
+  );
+}
+
+/** A password input with a show/hide toggle. Reveals only what the user typed —
+ *  saved secrets arrive blanked, so the toggle can never expose a stored value. */
+function PasswordInput(props: {
+  id?: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        autoComplete="off"
+        className="pr-10"
+        id={props.id}
+        onChange={props.onChange}
+        placeholder={props.placeholder}
+        type={show ? "text" : "password"}
+        value={props.value}
+      />
+      <button
+        aria-label={show ? "Hide" : "Show"}
+        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition-colors hover:text-foreground"
+        onClick={() => setShow((s) => !s)}
+        tabIndex={-1}
+        type="button"
+      >
+        {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
     </div>
   );
 }

@@ -6,8 +6,13 @@ export {
   sessionTurnsPath,
   writeChatState,
 } from "./chat-source.js";
-export type { HttpExtractorDeps } from "./extractor.js";
-export { createExtractor, HttpIntentExtractor, NaiveIntentExtractor } from "./extractor.js";
+export type { ExtractorHealth, HttpExtractorDeps } from "./extractor.js";
+export {
+  checkExtractorHealth,
+  createExtractor,
+  HttpIntentExtractor,
+  NaiveIntentExtractor,
+} from "./extractor.js";
 export { appendRunLog, readRunLog, runsLogPath } from "./observability.js";
 export type { IntentsPaths } from "./paths.js";
 export { intentsPaths, resolveRatelDir } from "./paths.js";

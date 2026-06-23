@@ -34,12 +34,32 @@ export type ExtractorProvider = "http" | "naive" | "cloud";
 /** How a skill draft is generated. `auto` picks anthropic-api when a key is set, else claude-cli. */
 export type SkillGenProvider = "auto" | "anthropic-api" | "claude-cli";
 
-/** Intent-extraction backend: an HTTP endpoint (local sidecar, remote, or cloud) + optional auth. */
+/**
+ * How the extractor endpoint is authenticated. `bearer` sends `Authorization:
+ * Bearer <apiKey>`; `basic` sends `Authorization: Basic <base64(username:apiKey)>`.
+ * Omitted = auto: basic when a username is set, else bearer when an apiKey is set,
+ * else no auth (a local sidecar needs none).
+ */
+export type ExtractorAuthScheme = "bearer" | "basic";
+
+/**
+ * Intent-extraction backend: an HTTP endpoint speaking the orbitals claim-extractor
+ * contract — a local Apple-Silicon sidecar, a Docker+GPU box, or a remote/hosted
+ * endpoint. They differ only by URL and auth, so switching `endpoint` (and creds)
+ * is all it takes to move between them.
+ */
 export interface ExtractorConfig {
   provider?: ExtractorProvider;
-  /** Base URL of the extractor HTTP service (local Apple-Silicon sidecar, Docker box, or cloud). */
+  /** Base URL of the extractor HTTP service (local Apple-Silicon sidecar, Docker box, or hosted). */
   endpoint?: string;
-  /** Bearer key for a remote/cloud endpoint. Secret-bearing — masked when read back over the UI. */
+  /** How to authenticate (`bearer`|`basic`). Omitted = auto-detect from username/apiKey. */
+  authScheme?: ExtractorAuthScheme;
+  /** Username for `basic` auth. Not secret — stored and read back in the clear. */
+  username?: string;
+  /**
+   * The secret credential: the bearer token (scheme `bearer`) or the password
+   * (scheme `basic`). Secret-bearing — masked when read back over the UI.
+   */
   apiKey?: string;
   /** Model identifier the endpoint should serve, e.g. "claim-extractor-4B". */
   model?: string;
@@ -128,6 +148,7 @@ export function parseConfig(input: unknown): RatelConfig {
 
 const CHAT_SOURCES: readonly ChatSourceKind[] = ["hooks", "api", "cloud"];
 const EXTRACTOR_PROVIDERS: readonly ExtractorProvider[] = ["http", "naive", "cloud"];
+const EXTRACTOR_AUTH_SCHEMES: readonly ExtractorAuthScheme[] = ["bearer", "basic"];
 const SKILL_GEN_PROVIDERS: readonly SkillGenProvider[] = ["auto", "anthropic-api", "claude-cli"];
 
 function parseAnalysis(raw: unknown): AnalysisConfig {
@@ -203,7 +224,15 @@ function parseExtractor(raw: unknown): ExtractorConfig {
     }
     extractor.provider = raw.provider as ExtractorProvider;
   }
-  for (const field of ["endpoint", "apiKey", "model"] as const) {
+  if (raw.authScheme !== undefined) {
+    if (!EXTRACTOR_AUTH_SCHEMES.includes(raw.authScheme as ExtractorAuthScheme)) {
+      throw new ConfigError(
+        `\`analysis.extractor.authScheme\` must be one of ${EXTRACTOR_AUTH_SCHEMES.join("|")}`,
+      );
+    }
+    extractor.authScheme = raw.authScheme as ExtractorAuthScheme;
+  }
+  for (const field of ["endpoint", "username", "apiKey", "model"] as const) {
     if (raw[field] !== undefined) {
       if (typeof raw[field] !== "string") {
         throw new ConfigError(`\`analysis.extractor.${field}\` must be a string`);
