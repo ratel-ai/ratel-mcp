@@ -209,7 +209,7 @@ export function SkillsPage() {
           skills={managed}
           renderAction={(skill) =>
             skill.source === "ratel" ? (
-              <span className="px-1 text-muted-foreground text-xs">Created in Ratel</span>
+              <DeleteSkillButton id={skill.id} name={skill.name} onDeleted={load} />
             ) : (
               <Button
                 disabled={busy}
@@ -343,6 +343,46 @@ function EmptyState(props: { title: string; description: string; children?: Reac
         {props.children && <div>{props.children}</div>}
       </div>
     </section>
+  );
+}
+
+function DeleteSkillButton(props: {
+  id: string;
+  name: string;
+  onDeleted: () => void | Promise<void>;
+}) {
+  const { request, runAction, busy } = useRatelApp();
+  const [open, setOpen] = useState(false);
+
+  const del = async () => {
+    const ok = await runAction(`Deleted ${props.name}`, () =>
+      request(`/api/skills/${encodeURIComponent(props.id)}`, { method: "DELETE" }),
+    );
+    if (ok) {
+      setOpen(false);
+      await props.onDeleted();
+    }
+  };
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>Delete</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete “{props.name}”?</DialogTitle>
+          <DialogDescription>
+            Permanently removes this Ratel-created skill from{" "}
+            <code>~/.ratel/skills/{props.id}</code>. This can't be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose render={<Button size="sm" variant="outline" />}>Cancel</DialogClose>
+          <Button disabled={busy} onClick={() => void del()} size="sm" variant="destructive">
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

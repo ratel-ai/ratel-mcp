@@ -5,7 +5,10 @@
 import { Route as rootRoute } from "./routes/__root";
 import { Route as AgentSetupRouteImport } from "./routes/agent-setup";
 import { Route as AgentSetupKindRouteImport } from "./routes/agent-setup.$kind";
+import { Route as ChatsRouteImport } from "./routes/chats";
+import { Route as ChatsIdRouteImport } from "./routes/chats.$id";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as IntentsRouteImport } from "./routes/intents";
 import { Route as SkillsRouteImport } from "./routes/skills";
 import { Route as SkillsIdRouteImport } from "./routes/skills.$id";
 import { Route as ToolsScopeNameRouteImport } from "./routes/tools/$scope/$name";
@@ -26,6 +29,24 @@ const AgentSetupRoute = AgentSetupRouteImport.update({
 const AgentSetupKindRoute = AgentSetupKindRouteImport.update({
   id: "/agent-setup/$kind",
   path: "/agent-setup/$kind",
+  getParentRoute: () => rootRoute,
+} as any);
+
+const ChatsRoute = ChatsRouteImport.update({
+  id: "/chats",
+  path: "/chats",
+  getParentRoute: () => rootRoute,
+} as any);
+
+const ChatsIdRoute = ChatsIdRouteImport.update({
+  id: "/chats/$id",
+  path: "/chats/$id",
+  getParentRoute: () => rootRoute,
+} as any);
+
+const IntentsRoute = IntentsRouteImport.update({
+  id: "/intents",
+  path: "/intents",
   getParentRoute: () => rootRoute,
 } as any);
 
@@ -76,6 +97,27 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AgentSetupKindRouteImport;
       parentRoute: typeof rootRoute;
     };
+    "/chats": {
+      id: "/chats";
+      path: "/chats";
+      fullPath: "/chats";
+      preLoaderRoute: typeof ChatsRouteImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/chats/$id": {
+      id: "/chats/$id";
+      path: "/chats/$id";
+      fullPath: "/chats/$id";
+      preLoaderRoute: typeof ChatsIdRouteImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/intents": {
+      id: "/intents";
+      path: "/intents";
+      fullPath: "/intents";
+      preLoaderRoute: typeof IntentsRouteImport;
+      parentRoute: typeof rootRoute;
+    };
     "/skills": {
       id: "/skills";
       path: "/skills";
@@ -111,7 +153,10 @@ export const routeTree = rootRoute
   ._addFileChildren({
     AgentSetupRoute,
     AgentSetupKindRoute,
+    ChatsRoute,
+    ChatsIdRoute,
     IndexRoute,
+    IntentsRoute,
     SkillsRoute,
     SkillsIdRoute,
     ToolsNewRoute,

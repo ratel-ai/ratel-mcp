@@ -25,9 +25,107 @@ export interface SkillsConfig {
   dirs?: string[];
 }
 
+/** Where captured chat comes from. `hooks` reads local capture files; `api`/`cloud` pull remotely. */
+export type ChatSourceKind = "hooks" | "api" | "cloud";
+
+/** Which intent-extraction backend to use. `http` is a local sidecar or remote endpoint. */
+export type ExtractorProvider = "http" | "naive" | "cloud";
+
+/** How a skill draft is generated. `auto` picks anthropic-api when a key is set, else claude-cli. */
+export type SkillGenProvider = "auto" | "anthropic-api" | "claude-cli";
+
+/**
+ * How the extractor endpoint is authenticated. `bearer` sends `Authorization:
+ * Bearer <apiKey>`; `basic` sends `Authorization: Basic <base64(username:apiKey)>`.
+ * Omitted = auto: basic when a username is set, else bearer when an apiKey is set,
+ * else no auth (a local sidecar needs none).
+ */
+export type ExtractorAuthScheme = "bearer" | "basic";
+
+/**
+ * Intent-extraction backend: an HTTP endpoint speaking the orbitals claim-extractor
+ * contract — a local Apple-Silicon sidecar, a Docker+GPU box, or a remote/hosted
+ * endpoint. They differ only by URL and auth, so switching `endpoint` (and creds)
+ * is all it takes to move between them.
+ */
+export interface ExtractorConfig {
+  provider?: ExtractorProvider;
+  /** Base URL of the extractor HTTP service (local Apple-Silicon sidecar, Docker box, or hosted). */
+  endpoint?: string;
+  /** How to authenticate (`bearer`|`basic`). Omitted = auto-detect from username/apiKey. */
+  authScheme?: ExtractorAuthScheme;
+  /** Username for `basic` auth. Not secret — stored and read back in the clear. */
+  username?: string;
+  /**
+   * The secret credential: the bearer token (scheme `bearer`) or the password
+   * (scheme `basic`). Secret-bearing — masked when read back over the UI.
+   */
+  apiKey?: string;
+  /** Model identifier the endpoint should serve, e.g. "claim-extractor-4B". */
+  model?: string;
+  /**
+   * Cap on the JSON size (in characters) of the `conversation` sent in one request.
+   * Long chats are split into chunks under this budget and the per-chunk results are
+   * merged — the hosted model has a fixed context window and returns 500 when the
+   * conversation overflows it. Omitted = a safe built-in default; raise it for a local
+   * sidecar with a larger window. Must be a positive integer.
+   */
+  maxRequestChars?: number;
+}
+
+/** When the analysis runner fires. Manual is always available; these are the automatic triggers. */
+export interface CadenceConfig {
+  /**
+   * Master switch for the background scheduler: when true, the gateway runs
+   * analysis automatically on a timer (subject to the triggers below). Defaults
+   * to false — automatic runs are opt-in; manual "Run now" always works.
+   */
+  auto?: boolean;
+  /** Trigger after this many new captured turns. Must be a positive integer (default 10). */
+  everyNMessages?: number;
+  /** Also trigger when a session goes idle (driven by the Stop hook). */
+  onIdle?: boolean;
+  /**
+   * Limit automatic/bulk runs to chats active within this many hours (a positive
+   * number; fractional allowed). Omitted = no limit (analyze every due chat).
+   * Per-chat manual analysis ignores this.
+   */
+  recentHours?: number;
+}
+
+/** Skill-draft generation backend. */
+export interface SkillGenConfig {
+  provider?: SkillGenProvider;
+  /** Anthropic API key. Secret-bearing — masked when read back over the UI. */
+  apiKey?: string;
+  /** Model id/alias the skill generator should use (e.g. an Anthropic model id, or a `claude -p` alias like 'haiku'/'sonnet'). Optional; the generator falls back to its default. */
+  model?: string;
+}
+
+/** Thresholds for deciding which skills "cover" an intent (BM25 search results). */
+export interface CoverageConfig {
+  /** Absolute BM25 floor: a skill scoring below this never covers an intent. */
+  minScore?: number;
+  /** Keep only skills within this fraction (0–1) of the top match for an intent. */
+  relativeRatio?: number;
+  /** Max skills reported as covering one intent. */
+  maxSkills?: number;
+}
+
+/** Chat → intent extraction pipeline settings. All optional; UI-configurable at user scope. */
+export interface AnalysisConfig {
+  enabled?: boolean;
+  chatSource?: ChatSourceKind;
+  extractor?: ExtractorConfig;
+  cadence?: CadenceConfig;
+  skillGen?: SkillGenConfig;
+  coverage?: CoverageConfig;
+}
+
 export interface RatelConfig {
   mcpServers: Record<string, ServerEntry>;
   skills?: SkillsConfig;
+  analysis?: AnalysisConfig;
 }
 
 export function parseConfig(input: unknown): RatelConfig {
@@ -49,7 +147,177 @@ export function parseConfig(input: unknown): RatelConfig {
   if (skills !== undefined) {
     config.skills = parseSkills(skills);
   }
+  const analysis = (input as Record<string, unknown>).analysis;
+  if (analysis !== undefined) {
+    config.analysis = parseAnalysis(analysis);
+  }
   return config;
+}
+
+const CHAT_SOURCES: readonly ChatSourceKind[] = ["hooks", "api", "cloud"];
+const EXTRACTOR_PROVIDERS: readonly ExtractorProvider[] = ["http", "naive", "cloud"];
+const EXTRACTOR_AUTH_SCHEMES: readonly ExtractorAuthScheme[] = ["bearer", "basic"];
+const SKILL_GEN_PROVIDERS: readonly SkillGenProvider[] = ["auto", "anthropic-api", "claude-cli"];
+
+function parseAnalysis(raw: unknown): AnalysisConfig {
+  if (!isPlainObject(raw)) {
+    throw new ConfigError("`analysis` must be a JSON object");
+  }
+  const analysis: AnalysisConfig = {};
+  if (raw.enabled !== undefined) {
+    if (typeof raw.enabled !== "boolean") {
+      throw new ConfigError("`analysis.enabled` must be a boolean");
+    }
+    analysis.enabled = raw.enabled;
+  }
+  if (raw.chatSource !== undefined) {
+    if (!CHAT_SOURCES.includes(raw.chatSource as ChatSourceKind)) {
+      throw new ConfigError(`\`analysis.chatSource\` must be one of ${CHAT_SOURCES.join("|")}`);
+    }
+    analysis.chatSource = raw.chatSource as ChatSourceKind;
+  }
+  if (raw.extractor !== undefined) {
+    analysis.extractor = parseExtractor(raw.extractor);
+  }
+  if (raw.cadence !== undefined) {
+    analysis.cadence = parseCadence(raw.cadence);
+  }
+  if (raw.skillGen !== undefined) {
+    analysis.skillGen = parseSkillGen(raw.skillGen);
+  }
+  if (raw.coverage !== undefined) {
+    analysis.coverage = parseCoverage(raw.coverage);
+  }
+  return analysis;
+}
+
+function parseCoverage(raw: unknown): CoverageConfig {
+  if (!isPlainObject(raw)) {
+    throw new ConfigError("`analysis.coverage` must be a JSON object");
+  }
+  const coverage: CoverageConfig = {};
+  if (raw.minScore !== undefined) {
+    if (typeof raw.minScore !== "number" || Number.isNaN(raw.minScore) || raw.minScore < 0) {
+      throw new ConfigError("`analysis.coverage.minScore` must be a non-negative number");
+    }
+    coverage.minScore = raw.minScore;
+  }
+  if (raw.relativeRatio !== undefined) {
+    const r = raw.relativeRatio;
+    if (typeof r !== "number" || Number.isNaN(r) || r < 0 || r > 1) {
+      throw new ConfigError("`analysis.coverage.relativeRatio` must be between 0 and 1");
+    }
+    coverage.relativeRatio = r;
+  }
+  if (raw.maxSkills !== undefined) {
+    const n = raw.maxSkills;
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 1) {
+      throw new ConfigError("`analysis.coverage.maxSkills` must be a positive integer");
+    }
+    coverage.maxSkills = n;
+  }
+  return coverage;
+}
+
+function parseExtractor(raw: unknown): ExtractorConfig {
+  if (!isPlainObject(raw)) {
+    throw new ConfigError("`analysis.extractor` must be a JSON object");
+  }
+  const extractor: ExtractorConfig = {};
+  if (raw.provider !== undefined) {
+    if (!EXTRACTOR_PROVIDERS.includes(raw.provider as ExtractorProvider)) {
+      throw new ConfigError(
+        `\`analysis.extractor.provider\` must be one of ${EXTRACTOR_PROVIDERS.join("|")}`,
+      );
+    }
+    extractor.provider = raw.provider as ExtractorProvider;
+  }
+  if (raw.authScheme !== undefined) {
+    if (!EXTRACTOR_AUTH_SCHEMES.includes(raw.authScheme as ExtractorAuthScheme)) {
+      throw new ConfigError(
+        `\`analysis.extractor.authScheme\` must be one of ${EXTRACTOR_AUTH_SCHEMES.join("|")}`,
+      );
+    }
+    extractor.authScheme = raw.authScheme as ExtractorAuthScheme;
+  }
+  for (const field of ["endpoint", "username", "apiKey", "model"] as const) {
+    if (raw[field] !== undefined) {
+      if (typeof raw[field] !== "string") {
+        throw new ConfigError(`\`analysis.extractor.${field}\` must be a string`);
+      }
+      extractor[field] = raw[field] as string;
+    }
+  }
+  if (raw.maxRequestChars !== undefined) {
+    const n = raw.maxRequestChars;
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 1) {
+      throw new ConfigError("`analysis.extractor.maxRequestChars` must be a positive integer");
+    }
+    extractor.maxRequestChars = n;
+  }
+  return extractor;
+}
+
+function parseCadence(raw: unknown): CadenceConfig {
+  if (!isPlainObject(raw)) {
+    throw new ConfigError("`analysis.cadence` must be a JSON object");
+  }
+  const cadence: CadenceConfig = {};
+  if (raw.auto !== undefined) {
+    if (typeof raw.auto !== "boolean") {
+      throw new ConfigError("`analysis.cadence.auto` must be a boolean");
+    }
+    cadence.auto = raw.auto;
+  }
+  if (raw.everyNMessages !== undefined) {
+    const n = raw.everyNMessages;
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 1) {
+      throw new ConfigError("`analysis.cadence.everyNMessages` must be a positive integer");
+    }
+    cadence.everyNMessages = n;
+  }
+  if (raw.onIdle !== undefined) {
+    if (typeof raw.onIdle !== "boolean") {
+      throw new ConfigError("`analysis.cadence.onIdle` must be a boolean");
+    }
+    cadence.onIdle = raw.onIdle;
+  }
+  if (raw.recentHours !== undefined) {
+    const h = raw.recentHours;
+    if (typeof h !== "number" || Number.isNaN(h) || h <= 0) {
+      throw new ConfigError("`analysis.cadence.recentHours` must be a positive number");
+    }
+    cadence.recentHours = h;
+  }
+  return cadence;
+}
+
+function parseSkillGen(raw: unknown): SkillGenConfig {
+  if (!isPlainObject(raw)) {
+    throw new ConfigError("`analysis.skillGen` must be a JSON object");
+  }
+  const skillGen: SkillGenConfig = {};
+  if (raw.provider !== undefined) {
+    if (!SKILL_GEN_PROVIDERS.includes(raw.provider as SkillGenProvider)) {
+      throw new ConfigError(
+        `\`analysis.skillGen.provider\` must be one of ${SKILL_GEN_PROVIDERS.join("|")}`,
+      );
+    }
+    skillGen.provider = raw.provider as SkillGenProvider;
+  }
+  if (raw.apiKey !== undefined) {
+    if (typeof raw.apiKey !== "string") {
+      throw new ConfigError("`analysis.skillGen.apiKey` must be a string");
+    }
+    skillGen.apiKey = raw.apiKey;
+  }
+  if (raw.model !== undefined) {
+    if (typeof raw.model !== "string") {
+      throw new ConfigError("`analysis.skillGen.model` must be a string");
+    }
+    skillGen.model = raw.model;
+  }
+  return skillGen;
 }
 
 function parseSkills(raw: unknown): SkillsConfig {
@@ -193,13 +461,18 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 export function mergeConfigs(configs: readonly RatelConfig[]): RatelConfig {
   const out: Record<string, ServerEntry> = {};
   let skills: SkillsConfig | undefined;
+  let analysis: AnalysisConfig | undefined;
   for (const c of configs) {
     for (const [name, entry] of Object.entries(c.mcpServers)) {
       out[name] = entry;
     }
     if (c.skills) skills = c.skills;
+    if (c.analysis) analysis = c.analysis;
   }
-  return skills ? { mcpServers: out, skills } : { mcpServers: out };
+  const merged: RatelConfig = { mcpServers: out };
+  if (skills) merged.skills = skills;
+  if (analysis) merged.analysis = analysis;
+  return merged;
 }
 
 export class ConfigError extends Error {

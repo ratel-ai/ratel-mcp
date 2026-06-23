@@ -5,7 +5,7 @@
   vertical-align: middle;
   /* One base loop at speed=1; --dmx-speed from JS scales inversely with the speed prop */
   --dmx-cycle: 1500ms;
-  /* Rest / mid / bright — override via opacityBase, opacityMid, opacityPeak on the component */
+  /* Rest / mid / bright - override via opacityBase, opacityMid, opacityPeak on the component */
   --dmx-opacity-base: 0.16;
   --dmx-opacity-mid: 0.32;
   --dmx-opacity-peak: 1;
