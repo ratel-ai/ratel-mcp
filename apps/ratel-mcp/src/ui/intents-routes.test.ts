@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -185,6 +185,24 @@ describe("deleteIntentRoute + clearIntentsRoute", () => {
     await deleteIntentRoute(ctx, { content: "set up a grafana dashboard" });
     const index = (await getIntents(ctx)).body as { intents: Array<{ content: string }> };
     expect(index.intents.map((i) => i.content)).toEqual(["write tests for the parser"]);
+  });
+
+  it("drops the session's cache and re-arms it once its last intent is deleted", async () => {
+    await seedAndRun();
+    const { intentsPaths, resolveRatelDir, readChatState } = await import("@ratel-ai/mcp-core");
+    const { intentsDir, chatDir } = intentsPaths(resolveRatelDir(process.env, home));
+    const cacheDir = join(intentsDir, "cache");
+    expect((await readdir(cacheDir).catch(() => [])).length).toBeGreaterThan(0);
+
+    // Removing one of two intents leaves the session non-empty → cache stays.
+    await deleteIntentRoute(ctx, { content: "write tests for the parser" });
+    expect((await readdir(cacheDir).catch(() => [])).length).toBeGreaterThan(0);
+
+    // Removing the last intent empties the session → its cache is dropped and it's re-armed.
+    await deleteIntentRoute(ctx, { content: "set up a grafana dashboard" });
+    expect(await readdir(cacheDir).catch(() => [])).toEqual([]);
+    const state = await readChatState(nodeFs, chatDir);
+    expect(state.sessions["sess-1"].needsReanalysis).toBe(true);
   });
 
   it("makes a deletion survive a rebuild from session files", async () => {

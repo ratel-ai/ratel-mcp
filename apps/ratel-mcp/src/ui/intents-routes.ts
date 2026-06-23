@@ -34,6 +34,7 @@ import {
   resolveAnalysisRuntime,
 } from "../intents/context.js";
 import { recomputeIntentCoverage } from "../intents/coverage.js";
+import { cacheEntryPath, cacheKey } from "../intents/extraction-cache.js";
 import { DEFAULT_EVERY_N_MESSAGES, runAnalysis } from "../intents/runner.js";
 import {
   readAnalysisSettings,
@@ -250,18 +251,48 @@ export async function deleteIntentRoute(
   if (content.trim().length === 0) {
     throw new Error("content is required");
   }
-  const dir = intentsDirFor(ctx);
-  const sessions = await readAllSessionIntents(ctx.fs, dir);
+  const { intentsDir, chatDir } = intentsPaths(resolveRatelDir(process.env, ctx.env.homeDir));
+  const sessions = await readAllSessionIntents(ctx.fs, intentsDir);
   const updated = removeIntentFromSessions(sessions, content);
-  // Persist only the sessions whose intents actually changed.
+  // Persist only the sessions whose intents actually changed; note any left empty.
+  const emptied: string[] = [];
   for (let i = 0; i < sessions.length; i++) {
     if (sessions[i].intents.length !== updated[i].intents.length) {
-      await writeSessionIntents(ctx.fs, dir, updated[i]);
+      await writeSessionIntents(ctx.fs, intentsDir, updated[i]);
+      if (updated[i].intents.length === 0) emptied.push(updated[i].sessionId);
     }
   }
+  // When a session has no intents left, drop its extraction cache and re-arm it so the
+  // next run re-extracts it fresh instead of replaying the now-stale cached result.
+  if (emptied.length > 0) {
+    await dropSessionCaches(ctx, intentsDir, chatDir, emptied);
+    await markSessionsForReanalysis(ctx.fs, chatDir, emptied);
+  }
   const next = rebuildIndex(updated);
-  await writeIntentsIndex(ctx.fs, dir, next);
+  await writeIntentsIndex(ctx.fs, intentsDir, next);
   return ok({ removed: content, remaining: next.intents.length });
+}
+
+/**
+ * Delete the extraction-cache entries for the given sessions. The cache is keyed by a
+ * hash of `(turns, model)`, so we recompute each session's key from its captured turns
+ * (matching what the runner stored) and remove that file. Missing turns/files are a
+ * no-op — the goal is only to guarantee a fresh re-extraction next run.
+ */
+async function dropSessionCaches(
+  ctx: HandlerCtx,
+  intentsDir: string,
+  chatDir: string,
+  sessionIds: string[],
+): Promise<void> {
+  const analysis = await loadUserAnalysis(ctx.env, ctx.fs);
+  const model = analysis?.extractor?.model;
+  const source = new HookChatSource({ chatDir, fs: ctx.fs });
+  for (const sessionId of sessionIds) {
+    const turns = await source.readSession(sessionId);
+    if (turns.length === 0) continue;
+    await rm(cacheEntryPath(intentsDir, cacheKey(turns, model)), { force: true });
+  }
 }
 
 /**

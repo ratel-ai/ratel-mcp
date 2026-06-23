@@ -29,7 +29,7 @@ export function cacheKey(turns: ChatTurn[], model?: string): string {
 }
 
 /** Path to one cache entry: `<intentsDir>/cache/<key>.json`. */
-function cacheEntryPath(intentsDir: string, key: string): string {
+export function cacheEntryPath(intentsDir: string, key: string): string {
   return join(intentsDir, "cache", `${key}.json`);
 }
 
