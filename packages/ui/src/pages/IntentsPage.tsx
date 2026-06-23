@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { chatPath, skillPath, useRatelApp } from "@/App";
+import {
+  IntentSearchingRow,
+  PLACEHOLDER_EXIT_MS,
+  usePresence,
+  useStreamingOrder,
+} from "@/components/intent-stream";
 import { Markdown } from "@/components/markdown";
 import {
   PageHeader,
@@ -81,6 +87,7 @@ import {
   skillGenModelOptions,
   testExtractor,
 } from "@/lib/intents";
+import { cn } from "@/lib/utils";
 import { ObservabilityPanel } from "@/pages/ObservabilityPage";
 
 type LoadState =
@@ -351,6 +358,7 @@ export function IntentsPage() {
               jobs={offerJobs}
               onReload={reload}
               sessionTitles={sessionTitles}
+              streaming={showRunning}
             />
           ) : (
             <BySessionView
@@ -445,22 +453,44 @@ function IntentList(props: {
   sessionTitles: SessionTitles;
   jobs: OfferJobs;
   onReload: () => Promise<void>;
+  /** A run is streaming results into this list: animate new rows in and show the slot. */
+  streaming?: boolean;
 }) {
+  const streaming = props.streaming ?? false;
+  const { items, entering } = useStreamingOrder(props.intents, streaming);
   const [shown, setShown] = useState(INTENTS_PAGE);
-  const visible = props.intents.slice(0, shown);
-  const remaining = props.intents.length - visible.length;
+  // Keep the searching slot mounted through its collapse animation after a run ends.
+  const placeholder = usePresence(streaming, PLACEHOLDER_EXIT_MS);
+
+  // While a run streams in, reveal everything so each new intent (and the slot) is
+  // visible as it lands; we never collapse back, so the list doesn't jump when it ends.
+  useEffect(() => {
+    if (streaming) setShown((n) => Math.max(n, items.length));
+  }, [streaming, items.length]);
+
+  const visible = items.slice(0, shown);
+  const remaining = items.length - visible.length;
   return (
     <div className="grid gap-2">
       <ul className="grid gap-2">
         {visible.map((intent) => (
-          <IntentRow
-            initialJob={props.jobs[intent.content]}
-            intent={intent}
+          <li
+            // The wrapper li grows the row into place on arrival; the inner overflow
+            // clip is what makes the height animation read as a slide into the slot.
+            className={cn("grid", entering.has(intent.content) && "animate-intent-enter")}
             key={intent.content}
-            onReload={props.onReload}
-            sessionTitles={props.sessionTitles}
-          />
+          >
+            <div className="overflow-hidden">
+              <IntentRow
+                initialJob={props.jobs[intent.content]}
+                intent={intent}
+                onReload={props.onReload}
+                sessionTitles={props.sessionTitles}
+              />
+            </div>
+          </li>
         ))}
+        {placeholder.mounted && <IntentSearchingRow exiting={placeholder.exiting} />}
       </ul>
       {remaining > 0 && (
         <div className="flex justify-center pt-1">
@@ -488,7 +518,7 @@ function IntentRow(props: {
   // Emphasize frequency when an intent shows up across many sessions.
   const frequent = seen >= 3;
   return (
-    <li className="flex items-start gap-3 rounded-md border border-border bg-card p-3">
+    <div className="flex items-start gap-3 rounded-md border border-border bg-card p-3">
       <Target className="mt-0.5 size-4 shrink-0 text-muted-foreground/50" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -525,7 +555,7 @@ function IntentRow(props: {
         />
         <DeleteIntentButton content={intent.content} onDeleted={props.onReload} />
       </div>
-    </li>
+    </div>
   );
 }
 

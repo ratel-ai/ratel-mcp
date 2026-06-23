@@ -147,6 +147,47 @@ textarea {
   }
 }
 
+/* Intent list streaming: a newly-found intent grows into its slot (rather than
+   popping in), and the "searching" placeholder collapses out (rather than blinking
+   away). Animating grid-template-rows 0fr<->1fr gives a real height transition; the
+   inner wrapper must be overflow-hidden to clip during the grow/collapse. */
+@keyframes intent-enter {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes intent-collapse {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@utility animate-intent-enter {
+  animation: intent-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-intent-collapse {
+  animation: intent-collapse 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-intent-enter,
+  .animate-intent-collapse {
+    animation: none !important;
+  }
+}
+
 @supports (animation-timeline: scroll()) {
   :where([class^="scroll-mask-"], [class*=" scroll-mask-"]) {
     --scroll-mask-t: linear-gradient(
