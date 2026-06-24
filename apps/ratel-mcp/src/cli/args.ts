@@ -1,4 +1,13 @@
-export type Group = "mcp" | "backup" | "skill" | "statusline" | "serve" | "ui" | "help" | "version";
+export type Group =
+  | "mcp"
+  | "backup"
+  | "skill"
+  | "statusline"
+  | "serve"
+  | "daemon"
+  | "ui"
+  | "help"
+  | "version";
 
 export type McpVerb = "add" | "remove" | "list" | "get" | "edit" | "import" | "link" | "auth";
 
@@ -148,6 +157,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
   } else if (first === "serve") {
     group = "serve";
     i = 1;
+  } else if (first === "daemon") {
+    group = "daemon";
+    i = 1;
   } else if (first === "ui") {
     group = "ui";
     i = 1;
@@ -232,7 +244,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    if (group === "serve") {
+    if (group === "serve" || group === "daemon") {
       configPaths.push(tok);
     } else {
       rest.push(tok);
