@@ -1,7 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BackupFs, HierarchyEnv, JsonFs } from "@ratel-ai/mcp-core";
+import {
+  type BackupFs,
+  defaultTelemetryDir,
+  type HierarchyEnv,
+  type JsonFs,
+  projectBucketDir,
+} from "@ratel-ai/mcp-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HandlerCtx } from "../cli/handlers/types.js";
 import { silentPromptAdapter } from "../cli/prompts.js";
@@ -14,6 +20,7 @@ const USER_PATH = "/home/u/.ratel/config.json";
 const PROJECT_PATH = "/r/.ratel/config.json";
 const LOCAL_PATH = "/r/.ratel/config.local.json";
 const CLAUDE_PATH = "/home/u/.claude.json";
+const CLAUDE_SETTINGS_PATH = "/home/u/.claude/settings.json";
 
 class MemFs implements BackupFs, JsonFs {
   files = new Map<string, string>();
@@ -248,6 +255,41 @@ describe("UI server — /api/config", () => {
     expect(body.projectRoot).toBe(ROOT);
   });
 
+  it("includes per-server tool context estimates from Ratel telemetry", async () => {
+    session.fs.files.set(
+      USER_PATH,
+      JSON.stringify({ mcpServers: { fs: { type: "stdio", command: "echo" } } }),
+    );
+    const bucket = projectBucketDir(defaultTelemetryDir({ homeDir: HOME }), ROOT);
+    session.fs.files.set(
+      join(bucket, "2026-06-19T12-00-00.jsonl"),
+      `${JSON.stringify({
+        type: "ratel_tool_payload",
+        server: "fs",
+        tool_count: 2,
+        estimated_tokens: 1024,
+        ts: Date.UTC(2026, 5, 19, 12),
+      })}\n`,
+    );
+
+    const res = await fetch(apiUrl("/api/config"), { headers: authHeaders() });
+    const body = (await res.json()) as {
+      toolTokenEstimatesByServer: Record<
+        string,
+        {
+          toolCount: number;
+          estimatedTokens: number;
+          lastSeen: string | null;
+        }
+      >;
+    };
+    expect(body.toolTokenEstimatesByServer.fs).toMatchObject({
+      toolCount: 2,
+      estimatedTokens: 1024,
+      lastSeen: "2026-06-19T12:00:00.000Z",
+    });
+  });
+
   it("marks project/local as unavailable when there is no project root", async () => {
     await session.handle.shutdown();
     await rm(session.assetDir, { recursive: true, force: true });
@@ -273,12 +315,37 @@ describe("UI server — agent previews", () => {
     const res = await fetch(apiUrl("/api/agent-hosts"), { headers: authHeaders() });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      hosts: Array<{ kind: string; posture: string; nativeEntryCount: number }>;
+      hosts: Array<{
+        kind: string;
+        posture: string;
+        nativeEntryCount: number;
+        statusline?: { status: string; ratelEnabled: boolean };
+      }>;
     };
 
     expect(body.hosts.map((host) => host.kind)).toEqual(["claude-code", "codex"]);
-    expect(body.hosts.find((host) => host.kind === "claude-code")?.posture).toBe("not-linked");
+    const claude = body.hosts.find((host) => host.kind === "claude-code");
+    expect(claude?.posture).toBe("not-linked");
+    expect(claude?.statusline?.status).toBe("not-installed");
+    expect(claude?.statusline?.ratelEnabled).toBe(false);
     expect(session.fs.files).toEqual(before);
+  });
+
+  it("reports Claude statusline Ratel-enabled state when the gateway is linked", async () => {
+    session.fs.files.set(
+      CLAUDE_PATH,
+      JSON.stringify({
+        mcpServers: { "ratel-mcp": { type: "stdio", command: "ratel-mcp" } },
+      }),
+    );
+
+    const res = await fetch(apiUrl("/api/agent-hosts"), { headers: authHeaders() });
+    const body = (await res.json()) as {
+      hosts: Array<{ kind: string; statusline?: { ratelEnabled: boolean } }>;
+    };
+    expect(body.hosts.find((host) => host.kind === "claude-code")?.statusline?.ratelEnabled).toBe(
+      true,
+    );
   });
 
   it("previews import without writing files", async () => {
@@ -412,6 +479,60 @@ describe("UI server — agent previews", () => {
     const claude = JSON.parse(session.fs.files.get(CLAUDE_PATH) as string);
     expect(claude.mcpServers.fs.command).toBe("echo");
     expect(claude.mcpServers["ratel-mcp"].args).toContain(USER_PATH);
+  });
+});
+
+describe("UI server — Claude statusline", () => {
+  it("installs and uninstalls the Ratel statusline", async () => {
+    const install = await fetch(apiUrl("/api/claude-statusline/install"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(install.status).toBe(200);
+    const stored = JSON.parse(session.fs.files.get(CLAUDE_SETTINGS_PATH) as string);
+    expect(stored.statusLine).toMatchObject({
+      type: "command",
+      padding: 0,
+      refreshInterval: 30,
+    });
+    expect(stored.statusLine.command).toContain("statusline");
+
+    const uninstall = await fetch(apiUrl("/api/claude-statusline/uninstall"), {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    expect(uninstall.status).toBe(200);
+    expect(
+      JSON.parse(session.fs.files.get(CLAUDE_SETTINGS_PATH) as string).statusLine,
+    ).toBeUndefined();
+  });
+
+  it("requires force before replacing a non-Ratel statusline", async () => {
+    session.fs.files.set(
+      CLAUDE_SETTINGS_PATH,
+      JSON.stringify({ statusLine: { type: "command", command: "other-statusline" } }),
+    );
+
+    const blocked = await fetch(apiUrl("/api/claude-statusline/install"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(blocked.status).toBe(400);
+    expect(
+      JSON.parse(session.fs.files.get(CLAUDE_SETTINGS_PATH) as string).statusLine.command,
+    ).toBe("other-statusline");
+
+    const forced = await fetch(apiUrl("/api/claude-statusline/install"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ force: true }),
+    });
+    expect(forced.status).toBe(200);
+    expect(
+      JSON.parse(session.fs.files.get(CLAUDE_SETTINGS_PATH) as string).statusLine.command,
+    ).toContain("statusline");
   });
 });
 

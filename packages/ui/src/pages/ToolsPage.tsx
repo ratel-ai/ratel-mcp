@@ -25,6 +25,7 @@ import {
   type RatelScope,
   SCOPES,
   type ServerEntry,
+  type ServerToolTokenEstimate,
   summaryOf,
   toolSourceCreatePath,
   toolSourcePath,
@@ -110,7 +111,7 @@ type EntryFormValues = {
   url: string;
 };
 
-const TOOL_SOURCE_GRID = "lg:grid-cols-[minmax(13rem,1.15fr)_7rem_minmax(14rem,1fr)_12rem]";
+const TOOL_SOURCE_GRID = "lg:grid-cols-[minmax(12rem,1.05fr)_7rem_minmax(13rem,1fr)_10rem_12rem]";
 const ENTRY_INPUT_CLASS = "bg-background placeholder:text-muted-foreground/45";
 const ENTRY_TEXTAREA_CLASS =
   "min-h-28 bg-background font-mono text-sm placeholder:text-muted-foreground/45";
@@ -226,11 +227,22 @@ export function ToolsPage() {
 
   const scopeData = config?.scopes[scope];
   const servers = scopeData?.available ? scopeData.config.mcpServers : {};
+  const scopeEntries = Object.entries(servers);
+  const scopeEstimates = scopeEntries
+    .map(([name]) => config?.toolTokenEstimatesByServer?.[name])
+    .filter((estimate): estimate is ServerToolTokenEstimate => Boolean(estimate));
+  const scopeMeasuredSourceCount = scopeEstimates.length;
+  const scopeToolCount = scopeEstimates.reduce((sum, estimate) => sum + estimate.toolCount, 0);
+  const scopeEstimatedTokens = scopeEstimates.reduce(
+    (sum, estimate) => sum + estimate.estimatedTokens,
+    0,
+  );
   const rows = Object.entries(servers)
     .map(([name, entry]) => ({
       authStatus: scopeData?.available ? scopeData.authStatus[name] : undefined,
       entry,
       name,
+      usage: config?.toolTokenEstimatesByServer?.[name],
     }))
     .filter((row) => typeFilter === "all" || entryTypeOf(row.entry) === typeFilter)
     .filter((row) => authFilter === "all" || authStatusOf(row.authStatus) === authFilter)
@@ -332,6 +344,16 @@ export function ToolsPage() {
           <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
             {scopeData?.available ? scopeData.path : "scope unavailable"}
           </p>
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+            {scopeData?.available
+              ? formatScopeTokenSummary({
+                  estimatedTokens: scopeEstimatedTokens,
+                  measuredSourceCount: scopeMeasuredSourceCount,
+                  sourceCount: scopeEntries.length,
+                  toolCount: scopeToolCount,
+                })
+              : "Tool counts unavailable"}
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:w-fit">
           <ToolSourceFilterSelect
@@ -429,16 +451,18 @@ export function ToolsPage() {
             <span>Tool Source</span>
             <span>Type</span>
             <span>Target</span>
+            <span>Tools</span>
             <span>Auth</span>
           </div>
           <div className="divide-border divide-y">
-            {rows.map(({ authStatus, entry, name }) => (
+            {rows.map(({ authStatus, entry, name, usage }) => (
               <ToolSourceRow
                 authStatus={authStatus}
                 busy={busy}
                 entry={entry}
                 key={name}
                 name={name}
+                usage={usage}
                 onAuthorize={() => {
                   return runAction("Authorization updated", () =>
                     request(`/api/auth/${encodeURIComponent(name)}`, {
@@ -466,6 +490,7 @@ function ToolSourceRow(props: {
   name: string;
   onAuthorize: () => Promise<unknown> | undefined;
   onOpen: () => void;
+  usage?: ServerToolTokenEstimate;
 }) {
   const canAuthorize =
     (props.entry.type === "http" || props.entry.type === "sse") &&
@@ -511,7 +536,13 @@ function ToolSourceRow(props: {
           {summaryOf(props.entry)}
         </code>
       </div>
-      <div className="relative z-10 order-3 col-span-1 grid gap-1.5 lg:order-none lg:col-span-1 lg:flex lg:flex-wrap lg:items-center lg:gap-2">
+      <div className="pointer-events-none relative z-10 order-3 col-span-1 grid min-w-0 gap-1.5 lg:order-none lg:col-span-1">
+        <span className="font-mono text-[10px] text-muted-foreground uppercase lg:hidden">
+          Tools
+        </span>
+        <ToolCountLabel usage={props.usage} />
+      </div>
+      <div className="relative z-10 order-5 col-span-2 grid gap-1.5 sm:col-span-1 lg:order-none lg:col-span-1 lg:flex lg:flex-wrap lg:items-center lg:gap-2">
         <span className="font-mono text-[10px] text-muted-foreground uppercase lg:hidden">
           Auth
         </span>
@@ -524,6 +555,50 @@ function ToolSourceRow(props: {
       </div>
     </div>
   );
+}
+
+function ToolCountLabel(props: { usage?: ServerToolTokenEstimate }) {
+  if (!props.usage) {
+    return <span className="block min-w-0 font-mono text-xs text-muted-foreground">N/A</span>;
+  }
+  return (
+    <span className="block min-w-0" title="Estimated from the latest Ratel telemetry">
+      <span className="block truncate font-mono text-xs">
+        {formatToolCount(props.usage.toolCount)}
+      </span>
+    </span>
+  );
+}
+
+function formatScopeTokenSummary(input: {
+  estimatedTokens: number;
+  measuredSourceCount: number;
+  sourceCount: number;
+  toolCount: number;
+}): string {
+  if (input.sourceCount === 0) return "No tool sources in this scope";
+  if (input.measuredSourceCount === 0) {
+    return "Use Ratel MCP to estimate tool counts and token savings";
+  }
+  return `${formatToolCount(input.toolCount)} in this scope, estimated to save ~${formatTokenEstimate(
+    input.estimatedTokens,
+  )}`;
+}
+
+function formatToolCount(count: number): string {
+  const value = Math.max(0, Math.round(count));
+  return `${value} ${value === 1 ? "tool" : "tools"}`;
+}
+
+function formatTokenEstimate(tokens: number): string {
+  const value = Math.max(0, Math.round(tokens));
+  if (value >= 1_000_000) return `${trimCompactNumber(value / 1_000_000)}M tokens`;
+  if (value >= 1_000) return `${trimCompactNumber(value / 1_000)}k tokens`;
+  return `${value} tokens`;
+}
+
+function trimCompactNumber(value: number): string {
+  return value >= 10 ? value.toFixed(0) : value.toFixed(1).replace(/\.0$/, "");
 }
 
 function ToolSourceFilterSelect(props: {

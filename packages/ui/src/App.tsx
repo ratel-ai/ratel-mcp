@@ -103,6 +103,14 @@ export interface ConfigResponse {
   projectRoot: string | null;
   scopes: Record<RatelScope, ScopeState>;
   backups: BackupManifest[];
+  toolTokenEstimatesByServer: Record<string, ServerToolTokenEstimate>;
+}
+
+export interface ServerToolTokenEstimate {
+  server: string;
+  toolCount: number;
+  estimatedTokens: number;
+  lastSeen: string | null;
 }
 
 interface AgentHostDetection {
@@ -125,6 +133,17 @@ interface AgentScopePosture {
   ratelEntryNames?: string[];
 }
 
+interface ClaudeStatuslineState {
+  settingsPath: string;
+  status: "not-installed" | "installed" | "other";
+  installed: boolean;
+  ownedByRatel: boolean;
+  command: string | null;
+  ratelEnabled: boolean;
+  ratelEnabledSources: string[];
+  warnings: string[];
+}
+
 interface DetectedAgentHostSummary {
   kind: AgentHostKind;
   displayName: string;
@@ -137,6 +156,7 @@ interface DetectedAgentHostSummary {
   ratelEntryNames?: string[];
   missingRatelEntryNames?: string[];
   scopes: AgentScopePosture[];
+  statusline?: ClaudeStatuslineState;
 }
 
 interface AgentHostsResponse {

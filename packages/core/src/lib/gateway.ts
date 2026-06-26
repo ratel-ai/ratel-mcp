@@ -12,6 +12,7 @@ import {
   type TraceSinkConfig,
   type UpstreamServerInfo,
 } from "@ratel-ai/sdk";
+import { recordToolTokenEstimate } from "../telemetry.js";
 import type { RatelConfig, ServerEntry } from "./config.js";
 import {
   type AuthFlowOptions,
@@ -26,6 +27,7 @@ import { refreshIfNeeded } from "./oauth/refresh.js";
 import { RatelOAuthStore } from "./oauth/store.js";
 import { wrapTransportWithSendMutex } from "./oauth/transport-mutex.js";
 import { defaultSkillDirs, loadSkills } from "./skills/load.js";
+import { estimateToolPayloadTokens } from "./usage.js";
 
 export type TransportFactory = (name: string, entry: ServerEntry) => Transport | undefined;
 
@@ -144,6 +146,9 @@ export async function buildGatewayFromConfig(
       }
       const handle = await registerMcpServer(catalog, { name, transport });
       handles.set(name, handle);
+      const toolPayloads = handle.toolIds.map((id) => catalog.get(id)).filter(Boolean);
+      const tokenEstimate = estimateToolPayloadTokens(toolPayloads);
+      recordToolTokenEstimate(options.trace, { server: name, estimate: tokenEstimate });
       const info: UpstreamServerInfo = { name, toolCount: handle.toolIds.length };
       const description = entry.description ?? handle.serverInstructions;
       if (description) info.description = description;
