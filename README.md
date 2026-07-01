@@ -112,6 +112,10 @@ ratel-mcp statusline install
 
 # Start the gateway over stdio (this is what linked agents spawn)
 ratel-mcp serve --config ~/.ratel/config.json
+
+# Install the stable local daemon on macOS or Linux
+ratel-mcp daemon install
+ratel-mcp daemon status
 ```
 
 Run `ratel-mcp <group>` for the verbs in a group:
@@ -121,6 +125,7 @@ Run `ratel-mcp <group>` for the verbs in a group:
 | `mcp` | `add`, `remove`, `list`, `get`, `edit`, `import`, `link`, `auth` |
 | `backup` | `list` |
 | `statusline` | render from stdin, `install`, `uninstall` |
+| `daemon` | `run`, `install`, `uninstall`, `status`, `start`, `stop`, `restart` |
 | (top-level) | `serve`, `ui` |
 
 ### `ratel-mcp mcp add` — Claude-compatible
@@ -211,6 +216,36 @@ For summarizing the resulting JSONL stream, see [`@ratel-ai/cli`'s `ratel inspec
 ### Backups
 
 Every `import`, `link`, `add`, `edit`, and `remove` snapshots the files it touches into `~/.ratel/backups/<ISO>/` with a `manifest.json`. `ratel-mcp backup list` shows what's available.
+
+### Local daemon
+
+`ratel-mcp daemon run` starts the same gateway over loopback HTTP with a stable
+default endpoint:
+
+```text
+UI:  http://127.0.0.1:5731
+MCP: http://127.0.0.1:5731/mcp
+```
+
+On macOS, `ratel-mcp daemon install` writes a user LaunchAgent at
+`~/Library/LaunchAgents/ai.ratel.mcp.daemon.plist`. On Linux, it writes a
+user-level systemd unit at
+`~/.config/systemd/user/ratel-mcp-daemon.service` and runs
+`systemctl --user enable --now ratel-mcp-daemon.service`.
+
+Both variants start at login, store advisory runtime state in
+`~/.ratel/daemon.json`, and log to `~/.ratel/logs/daemon.log` and
+`~/.ratel/logs/daemon.err.log`.
+
+```bash
+ratel-mcp daemon install
+ratel-mcp daemon status
+ratel-mcp daemon restart
+ratel-mcp daemon uninstall
+```
+
+The daemon exposes unauthenticated loopback-only health endpoints at `/healthz`
+and `/api/daemon/status`; UI APIs remain protected by the session token.
 
 ### Browser UI
 
